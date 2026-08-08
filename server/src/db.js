@@ -21,6 +21,9 @@ async function ensureTelemetryCollection(db) {
   });
 }
 
+/** Marks the one failure we are certain about, so the catch below can re-throw it. */
+class StandaloneError extends Error {}
+
 export async function connect(uri = config.mongoUri) {
   mongoose.set('strictQuery', true);
   // Index builds block startup and can take minutes once a collection is large,
@@ -38,13 +41,29 @@ export async function connect(uri = config.mongoUri) {
   const { db } = mongoose.connection;
   await ensureTelemetryCollection(db);
 
-  // Change streams are the backbone of the live dashboard. Failing here at boot
-  // with a clear message beats an empty dashboard and a silent stream later.
-  const hello = await db.admin().command({ hello: 1 });
-  if (!hello.setName) {
-    throw new Error(
-      'Connected to a standalone mongod. Coilworks needs a replica set for change streams ' +
-        'and transactions - run `docker compose up -d` or `scripts/mongo-dev.ps1`.',
+  // Change streams are the backbone of the live dashboard. Catching a standalone
+  // mongod here, with a clear message, beats an empty dashboard and a silently
+  // dead stream later.
+  //
+  // The check is best-effort on purpose. Shared-tier hosts (Atlas M0 among them)
+  // restrict admin commands, so an authorization failure tells us nothing about
+  // the topology - and refusing to boot over it would block a perfectly good
+  // managed deployment, which is always a replica set anyway. So: fail loudly
+  // when we can prove it is standalone, warn when we cannot tell, never guess.
+  try {
+    const hello = await db.admin().command({ hello: 1 });
+    if (!hello.setName) {
+      throw new StandaloneError(
+        'Connected to a standalone mongod. Coilworks needs a replica set for change streams ' +
+          'and transactions - run `docker compose up -d` or `scripts/mongo-dev.ps1`.',
+      );
+    }
+  } catch (err) {
+    if (err instanceof StandaloneError) throw err;
+    console.warn(
+      `[db] could not verify replica set (${err.message}). ` +
+        'This is expected on shared-tier hosts that restrict admin commands. ' +
+        'If change streams fail shortly after boot, the server is not a replica set.',
     );
   }
 
