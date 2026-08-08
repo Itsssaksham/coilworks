@@ -1,0 +1,51 @@
+services:
+  mongo:
+    image: mongo:8
+    container_name: coilworks-mongo
+    # Single-node replica set. Change streams and multi-document transactions
+    # require an oplog, which a standalone mongod does not have.
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27018"]
+    ports:
+      - "27018:27018"
+    volumes:
+      - coilworks-mongo-data:/data/db
+    healthcheck:
+      # Initiates the replica set on first boot, then reports healthy once
+      # this node has been elected primary.
+      test: >
+        mongosh --port 27018 --quiet --eval "
+          try { rs.status().ok }
+          catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27018'}]}).ok }
+        "
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+
+  # The full application: API, WebSocket hub, and the built SPA in one process.
+  # Started with `docker compose --profile app up --build`; leave the profile off
+  # to run only MongoDB while developing against it with `npm run dev`.
+  app:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: coilworks-app
+    depends_on:
+      mongo:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      API_PORT: 4000
+      MONGO_URI: mongodb://mongo:27018/coilworks?replicaSet=rs0&directConnection=true
+      # Both are validated at boot - the app refuses to start in production with
+      # the built-in development secret or an empty CORS allowlist.
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET to a 32+ character random string}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:4000}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    restart: unless-stopped
+
+volumes:
+  coilworks-mongo-data:

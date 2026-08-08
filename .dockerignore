@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+.mongo-data
+client/dist
+.git
+.env
+.env.local
+*.log
+.claude
+README.md
