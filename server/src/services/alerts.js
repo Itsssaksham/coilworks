@@ -107,7 +107,9 @@ export async function evaluateMachine({ machine, reading, chilled }) {
   }
 
   // --- Coil jams ---------------------------------------------------------
-  for (const slotCode of reading.coilFaults ?? []) {
+  const faulting = new Set(reading.coilFaults ?? []);
+
+  for (const slotCode of faulting) {
     push(
       await raiseAlert({
         machine,
@@ -118,6 +120,28 @@ export async function evaluateMachine({ machine, reading, chilled }) {
         detail: { slotCode },
       }),
     );
+  }
+
+  // A slot the controller no longer reports as faulting has been cleared - on a
+  // service visit, or because the obstruction shifted. Resolve its alert.
+  //
+  // Without this a jam alert stayed open forever: `machine.slots[].jammed` was
+  // reset on every heartbeat but the alert was not, so the queue accumulated
+  // jams that had physically been fixed - and an alert queue that only grows
+  // stops being read.
+  //
+  // ASSUMPTION, and the one worth challenging: this trusts the controller to
+  // LATCH a jam until it is serviced, so that absence of the fault in a reading
+  // means resolved. That is how `slot.jammed` already behaves, so the two stay
+  // consistent. It would be wrong for a controller that only reports a fault at
+  // the moment a vend fails - then a slot nobody buys from would look healthy,
+  // and the alert would close on a jam that is still physically there. If a
+  // real controller behaves that way, clear on a *successful vend* from the
+  // slot instead, which is positive evidence rather than absence of evidence.
+  for (const slot of machine.slots) {
+    if (!faulting.has(slot.code)) {
+      await clearAlert({ machineId: machine._id, type: 'jam', subject: slot.code });
+    }
   }
 
   // --- Cash box ----------------------------------------------------------

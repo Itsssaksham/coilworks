@@ -1412,6 +1412,16 @@
             <td>A dedupe key plus a partial unique index, so concurrent writers cannot both win</td>
           </tr>
           <tr>
+            <td>A fault clears (jam freed, chiller recovers)</td>
+            <td><span class="pill good">alert resolves itself</span></td>
+            <td>Every rule that can raise can also clear - an alert queue that only grows stops being read</td>
+          </tr>
+          <tr>
+            <td>A stranger finds the demo URL</td>
+            <td><span class="pill good">read-only</span></td>
+            <td>The public login is a viewer; every mutation is behind a server-side role check</td>
+          </tr>
+          <tr>
             <td>No Anthropic API key</td>
             <td><span class="pill good">offline analyzer, labelled</span></td>
             <td>The product still works; the UI never passes rules off as a model</td>

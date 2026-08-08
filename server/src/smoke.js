@@ -208,10 +208,27 @@ async function main() {
   });
 
   await check('an admin CAN still do all of it', async () => {
-    const alert = await Alert.findOne({ status: 'open' });
-    if (!alert) return; // nothing open right now; the negative cases above carry the weight
-    const { status } = await api(`/api/alerts/${alert._id}/acknowledge`, { method: 'POST', token });
-    assert.equal(status, 200, 'the write role must not have been broken by the gate');
+    // Its own fixture. Acknowledging an arbitrary open alert mutated shared
+    // state that later checks relied on - it kept picking the jam alert, which
+    // then deduped as `acknowledged` and broke the jam check on the next run.
+    const machineForFixture = await Machine.findOne({});
+    const alert = await Alert.create({
+      machineId: machineForFixture._id,
+      machineCode: machineForFixture.code,
+      type: 'cash_full',
+      severity: 'warning',
+      message: 'smoke test fixture',
+      dedupeKey: `smoke:admin:${Date.now()}`,
+    });
+
+    try {
+      const { status } = await api(`/api/alerts/${alert._id}/acknowledge`, { method: 'POST', token });
+      assert.equal(status, 200, 'the write role must not have been broken by the gate');
+      const after = await Alert.findById(alert._id);
+      assert.equal(after.status, 'acknowledged');
+    } finally {
+      await Alert.deleteOne({ _id: alert._id });
+    }
   });
 
   // --- WebSocket auth ----------------------------------------------------
@@ -358,13 +375,17 @@ async function main() {
   // --- alert rules -------------------------------------------------------
   await check('a coil fault raises a jam alert and faults the machine', async () => {
     const target = (await Machine.findById(machine._id)).slots[0].code;
-    await api(`/api/ingest/${machine.code}/telemetry`, {
+    const res = await api(`/api/ingest/${machine.code}/telemetry`, {
       method: 'POST',
       machineKey: key.plain,
       body: { temperatureC: 4, powerOk: true, coilFaults: [target] },
     });
+    // Assert the write landed before asserting its effects. Without this, a 401
+    // or 429 shows up as the far more confusing "status was online, not fault".
+    assert.equal(res.status, 202, `telemetry POST returned ${res.status}: ${JSON.stringify(res.body)}`);
+
     const fresh = await Machine.findById(machine._id);
-    assert.equal(fresh.status, 'fault');
+    assert.equal(fresh.status, 'fault', `expected fault after reporting a jam on ${target}`);
     const alert = await Alert.findOne({ machineId: machine._id, type: 'jam', status: 'open' });
     assert.ok(alert, 'expected an open jam alert');
   });
@@ -384,13 +405,25 @@ async function main() {
   });
 
   await check('clearing the fault resolves the alert', async () => {
-    await api(`/api/ingest/${machine.code}/telemetry`, {
+    const res = await api(`/api/ingest/${machine.code}/telemetry`, {
       method: 'POST',
       machineKey: key.plain,
       body: { temperatureC: 4, powerOk: true, coilFaults: [] },
     });
+    assert.equal(res.status, 202, `telemetry POST returned ${res.status}`);
+
     const fresh = await Machine.findById(machine._id);
     assert.equal(fresh.status, 'online');
+
+    // The name of this check promises the alert resolves, so verify it. It did
+    // not before: jams were the one rule with no clear path, so they piled up
+    // in the queue after being physically fixed.
+    const stillOpen = await Alert.countDocuments({
+      machineId: machine._id,
+      type: 'jam',
+      status: { $in: ['open', 'acknowledged'] },
+    });
+    assert.equal(stillOpen, 0, 'a jam alert must resolve once the slot stops faulting');
   });
 
   // --- vend transaction --------------------------------------------------
