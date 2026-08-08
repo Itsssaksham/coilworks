@@ -41,10 +41,10 @@ USER node
 
 EXPOSE 4000
 
-# The container's health is "can it actually serve", which includes whether the
-# change streams are alive - see /api/ready in server/src/index.js.
+# Probes whatever port the app actually bound, which on a managed platform is
+# assigned via PORT rather than fixed at 4000.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "const p=process.env.API_PORT||process.env.PORT||4000;fetch('http://127.0.0.1:'+p+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 WORKDIR /app/server
 CMD ["node", "src/index.js"]

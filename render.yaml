@@ -26,8 +26,10 @@ services:
       - key: NODE_ENV
         value: production
 
-      - key: API_PORT
-        value: 4000
+      # API_PORT is deliberately NOT set. Render assigns a port via PORT and
+      # health-checks that port; the app reads PORT in production for exactly
+      # this reason. Pinning API_PORT here would override it and the health
+      # check would probe a port nothing is listening on.
 
       # Generated once by Render and kept across deploys. Never printed, never
       # in the repository - which is exactly what the boot-time validation in

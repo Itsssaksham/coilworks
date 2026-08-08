@@ -8,11 +8,23 @@ const DEFAULT_JWT_SECRET = 'coilworks-dev-secret-change-me';
 export const config = {
   env: process.env.NODE_ENV || 'development',
 
-  // Deliberately API_PORT and not PORT. In a workspace repo the web dev server
-  // and any harness that launches it also read PORT, and an inherited value
-  // silently binds the API to the web port - the two then fight and the Vite
-  // proxy has nothing to forward to.
-  port: Number(process.env.API_PORT || process.env.PORT_API || 4000),
+  // Port resolution, in order: API_PORT, then PORT but only in production,
+  // then 4000.
+  //
+  // PORT is deliberately ignored in development: the Vite dev server and the
+  // harnesses that launch it also read it, and an inherited value silently
+  // binds the API on top of the web server, leaving the proxy nothing to
+  // forward to.
+  //
+  // In production that reasoning does not hold and the opposite is true - every
+  // container platform (Render, Fly, Cloud Run, Heroku) assigns a port via PORT
+  // and health-checks it. Ignoring it there means the platform probes a port
+  // nothing is listening on and marks the deploy failed.
+  port: Number(
+    process.env.API_PORT ||
+      (process.env.NODE_ENV === 'production' ? process.env.PORT : '') ||
+      4000,
+  ),
 
   // directConnection keeps the driver talking to this one node instead of trying
   // to discover replica set members by their advertised hostnames.
