@@ -1088,6 +1088,74 @@
       </div>
     </div>
 
+    <h3>“Why not just put it on Vercel?”</h3>
+
+    <p>
+      Worth answering precisely, because the obvious answer stopped being true in
+      June 2026 — Vercel added native WebSocket support to its functions. So
+      “serverless can’t do WebSockets” is out of date.
+    </p>
+
+    <p>
+      The constraint that still bites is different. A WebSocket on Vercel is pinned
+      to one function instance <em>for that function’s maximum duration</em>, and
+      terminates when it is reached. On the Hobby plan that maximum is
+      <strong>300 seconds, with no way to extend it</strong> — so a live dashboard
+      would drop and reconnect every five minutes. Survivable, since the client
+      already backs off and reconnects, but it is the least of the problems.
+    </p>
+
+    <p>
+      The real issue is that four things in this app hold state <em>in the
+      process</em>, and serverless gives you many short-lived instances instead of
+      one long-lived one:
+    </p>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>What holds state</th><th>What happens on Vercel</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>WebSocket tickets (in-memory Map)</td>
+            <td>Minted by one instance, redeemed by another — and routing to the same instance is not guaranteed, so most redemptions fail</td>
+          </tr>
+          <tr>
+            <td>Change streams + resume tokens</td>
+            <td>Every instance opens its own three streams against Atlas, and each new one restarts from “now”, dropping the gap</td>
+          </tr>
+          <tr>
+            <td>The 30-second offline sweep</td>
+            <td>A <code>setInterval</code> does not survive between invocations; Cron is minute-granularity at best</td>
+          </tr>
+          <tr>
+            <td>Rate-limit buckets</td>
+            <td>Per instance, so the effective limit is N times the intended one</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      All four are fixable — signed short-lived tickets instead of a Map, Redis for
+      fan-out and limits, a Cron route for the sweep. But that is the same Redis
+      migration the rest of this document keeps pointing at, done to satisfy a
+      platform rather than to serve users, and it trades away the single-process
+      design for a live feed that is measurably worse. Render, Railway, and Fly all
+      run the existing container unchanged.
+    </p>
+
+    <div class="note">
+      <span class="note-label">The version that does make sense</span>
+      <p>
+        Put the SPA on Vercel and the API on a host with long-lived processes. That
+        plays to what Vercel is genuinely best at — CDN-served static assets and
+        preview deploys — and leaves the stateful half where it belongs. The
+        <code>CORS_ORIGINS</code> allowlist already exists for exactly this split.
+      </p>
+    </div>
+
     <!-- ============================================================ -->
     <h2 id="toolloop"><span class="h2-num">11</span>Why the AI loop is hand-written</h2>
 
@@ -1459,6 +1527,23 @@
           operator can check it. Then the security point, which is the one that lands:
           every tool is read-only by construction, so even a successful prompt injection
           can mislead a reader but cannot change fleet state.
+        </p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary>Why isn't this on Vercel?</summary>
+      <div class="answer">
+        <p>
+          Lead with the fact that the obvious objection is stale — Vercel has
+          supported WebSockets natively since June 2026. Then give the real reason:
+          a socket is pinned to a function instance for its max duration and dies
+          when that is hit, which on the Hobby plan is a hard 300 seconds. And more
+          importantly, four things here hold state in the process — tickets, change
+          stream resume tokens, the offline sweep timer, and rate-limit buckets —
+          and none of them survive being spread across ephemeral instances. Finish
+          with the version that does work: SPA on Vercel, stateful API somewhere
+          with long-lived processes.
         </p>
       </div>
     </details>
