@@ -2,7 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import { Machine } from '../models/Machine.js';
 import { RestockRun } from '../models/RestockRun.js';
-import { requireOperator } from '../middleware/auth.js';
+import { requireOperator, requireWriteAccess } from '../middleware/auth.js';
 import { planRoute, haversineMeters } from '../services/geo.js';
 import { forecastStockouts } from '../services/forecast.js';
 
@@ -26,7 +26,7 @@ const planSchema = z.object({
  * planner. The result is a driver-ready list: stops in order, with the pick list
  * for each.
  */
-runsRouter.post('/plan', async (req, res, next) => {
+runsRouter.post('/plan', requireWriteAccess, async (req, res, next) => {
   try {
     const parsed = planSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -136,7 +136,7 @@ const statusSchema = z.object({
 });
 
 /** POST /api/runs/:id/status */
-runsRouter.post('/:id/status', async (req, res, next) => {
+runsRouter.post('/:id/status', requireWriteAccess, async (req, res, next) => {
   try {
     const parsed = statusSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid status' });

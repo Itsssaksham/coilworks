@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import { connect, disconnect } from './db.js';
 import { Machine } from './models/Machine.js';
@@ -19,6 +20,21 @@ import { generateMachineKey } from './middleware/auth.js';
  * Deterministic: a seeded PRNG means every run produces the same fleet, so the
  * smoke test can assert on it and a demo looks the same on any machine.
  */
+
+/**
+ * The read-only demo login. Public by design - this is the credential that goes
+ * out with a demo link, and the viewer role cannot mutate anything.
+ */
+const VIEWER_PASSWORD = 'coilworks';
+
+/** Password for the write-capable accounts when none is supplied. */
+function randomPassword() {
+  // Ambiguous characters removed so it survives being read aloud or retyped.
+  const alphabet = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from(crypto.randomBytes(18))
+    .map((b) => alphabet[b % alphabet.length])
+    .join('');
+}
 
 // mulberry32 - small, fast, and reproducible from a fixed seed.
 function rng(seed = 0x5eed) {
@@ -103,11 +119,45 @@ async function seed() {
   await Product.insertMany(PRODUCTS);
 
   console.log('[seed] operators...');
-  const password = await Operator.hashPassword('coilworks');
+  /**
+   * Three logins, and only the read-only one has a password in this file.
+   *
+   * The viewer password is public on purpose - it is the credential you hand out
+   * with a demo link, and the role cannot change anything, so publishing it costs
+   * nothing.
+   *
+   * The two write-capable passwords are read from the environment, or generated
+   * and printed once if unset. Hardcoding them here is what made the earlier
+   * deployment insecure: the file is in a public repository, so anyone who read
+   * it had admin on the live instance.
+   */
+  const adminPassword = process.env.DEMO_ADMIN_PASSWORD || randomPassword();
+  const dispatchPassword = process.env.DEMO_DISPATCH_PASSWORD || randomPassword();
+
   await Operator.insertMany([
-    { email: 'ops@coilworks.io', name: 'Fleet Admin', passwordHash: password, role: 'admin' },
-    { email: 'dispatch@coilworks.io', name: 'Dispatch Desk', passwordHash: password, role: 'dispatcher' },
+    {
+      email: 'viewer@coilworks.io',
+      name: 'Demo Viewer',
+      passwordHash: await Operator.hashPassword(VIEWER_PASSWORD),
+      role: 'viewer',
+    },
+    {
+      email: 'ops@coilworks.io',
+      name: 'Fleet Admin',
+      passwordHash: await Operator.hashPassword(adminPassword),
+      role: 'admin',
+    },
+    {
+      email: 'dispatch@coilworks.io',
+      name: 'Dispatch Desk',
+      passwordHash: await Operator.hashPassword(dispatchPassword),
+      role: 'dispatcher',
+    },
   ]);
+  const generated = {
+    admin: process.env.DEMO_ADMIN_PASSWORD ? null : adminPassword,
+    dispatch: process.env.DEMO_DISPATCH_PASSWORD ? null : dispatchPassword,
+  };
 
   console.log('[seed] machines...');
   const machineKeys = [];
@@ -200,9 +250,20 @@ async function seed() {
   }
   console.log(`  ... and ${machineKeys.length - 3} more (the simulator re-mints its own).`);
 
-  console.log('\n=== Operator login ===');
-  console.log('  ops@coilworks.io / coilworks       (admin)');
-  console.log('  dispatch@coilworks.io / coilworks  (dispatcher)');
+  console.log('\n=== Operator logins ===');
+  console.log(`  viewer@coilworks.io / ${VIEWER_PASSWORD}`);
+  console.log('    read-only. Safe to share with a demo link - it cannot change anything.');
+  console.log('');
+  if (generated.admin) {
+    console.log(`  ops@coilworks.io / ${generated.admin}    (admin)`);
+    console.log(`  dispatch@coilworks.io / ${generated.dispatch}    (dispatcher)`);
+    console.log('');
+    console.log('  ^ Generated for this seed and shown ONCE. Save them now.');
+    console.log('    Set DEMO_ADMIN_PASSWORD / DEMO_DISPATCH_PASSWORD to choose your own.');
+  } else {
+    console.log('  ops@coilworks.io       (admin)      - password from DEMO_ADMIN_PASSWORD');
+    console.log('  dispatch@coilworks.io  (dispatcher) - password from DEMO_DISPATCH_PASSWORD');
+  }
 
   await disconnect();
   console.log('\n[seed] done.');

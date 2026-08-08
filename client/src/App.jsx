@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, getToken, clearToken } from './api.js';
+import { api, getToken, clearToken, canWrite } from './api.js';
 import { useLive } from './useLive.js';
 import Login from './components/Login.jsx';
 import Dashboard from './views/Dashboard.jsx';
@@ -155,13 +155,19 @@ export default function App() {
           </div>
           <div>{operator.name}</div>
           <div className="faint" style={{ marginBottom: 8 }}>{operator.role}</div>
+          {!canWrite(operator) && (
+            <div className="readonly-note">
+              Read-only access. You can explore everything; changing fleet state
+              needs a dispatcher account.
+            </div>
+          )}
           <button onClick={signOut} style={{ width: '100%', fontSize: 12 }}>Sign out</button>
         </div>
       </nav>
 
       <main className="main">
         {openMachine ? (
-          <MachineDetail code={openMachine} onBack={() => setOpenMachine(null)} />
+          <MachineDetail code={openMachine} onBack={() => setOpenMachine(null)} canWrite={canWrite(operator)} />
         ) : (
           <>
             <div className="page-head">
@@ -188,9 +194,9 @@ export default function App() {
               <Machines machines={machines} flashed={flashed} onOpenMachine={goToMachine} />
             )}
             {view === 'alerts' && (
-              <Alerts alerts={alerts} onChanged={loadAll} onOpenMachine={goToMachine} />
+              <Alerts alerts={alerts} onChanged={loadAll} onOpenMachine={goToMachine} canWrite={canWrite(operator)} />
             )}
-            {view === 'runs' && <Runs machines={machines} />}
+            {view === 'runs' && <Runs machines={machines} canWrite={canWrite(operator)} />}
             {view === 'assistant' && <Assistant />}
           </>
         )}

@@ -47,7 +47,22 @@ npm run seed
 npm run dev
 ```
 
-Open <http://localhost:5173> and sign in as `ops@coilworks.io` / `coilworks`.
+Open <http://localhost:5173> and sign in as `viewer@coilworks.io` / `coilworks`.
+
+The seed creates three accounts. Only the read-only one has a password in this
+repository — the two write-capable accounts get generated passwords, printed
+once when you seed:
+
+| Account | Role | Can |
+|---|---|---|
+| `viewer@coilworks.io` | viewer | read everything, run AI triage, ask the assistant |
+| `dispatch@coilworks.io` | dispatcher | the above, plus restock, alerts, planning runs |
+| `ops@coilworks.io` | admin | the above, plus provisioning machines and minting keys |
+
+Set `DEMO_ADMIN_PASSWORD` and `DEMO_DISPATCH_PASSWORD` before seeding to choose
+your own. The viewer credential is public deliberately: it is what you hand out
+with a demo link, and the role cannot change anything, so publishing it costs
+nothing.
 
 In a second terminal, bring the fleet to life:
 
@@ -182,9 +197,13 @@ message rather than letting the dashboard sit silently empty.
 The security and deployment work is done; the scaling work is not. Both are
 stated plainly rather than implied.
 
-**Done.** Every WebSocket connection is authenticated. All user- and
-model-supplied search input is regex-escaped. Production refuses to boot with an
-unsafe secret or an open CORS policy. Change streams resume from a token after a
+**Done.** Every WebSocket connection is authenticated. Write access is a server-
+enforced role boundary, so the public demo login can explore the entire fleet
+and change none of it — the UI hides those controls, but the guard that matters
+is `requireWriteAccess` on the route, and the smoke suite proves it by attempting
+each mutation as a viewer. No write-capable password exists in this repository.
+All user- and model-supplied search input is regex-escaped. Production refuses to
+boot with an unsafe secret or an open CORS policy. Change streams resume from a token after a
 failure and, when they can't, the dashboard says *stale* instead of showing a
 green light over frozen numbers. Security headers and a strict CSP are set,
 `x-powered-by` is off. List endpoints are paginated with clamped limits. Indexes

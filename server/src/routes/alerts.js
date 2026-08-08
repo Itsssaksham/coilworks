@@ -1,7 +1,7 @@
 import express from 'express';
 import { Alert } from '../models/Alert.js';
 import { Machine } from '../models/Machine.js';
-import { requireOperator } from '../middleware/auth.js';
+import { requireOperator, requireWriteAccess } from '../middleware/auth.js';
 import { triageAlert } from '../services/llm/triage.js';
 import { providerInfo } from '../services/llm/client.js';
 
@@ -37,7 +37,7 @@ alertsRouter.get('/', async (req, res, next) => {
 });
 
 /** POST /api/alerts/:id/acknowledge - operator has seen it and owns it. */
-alertsRouter.post('/:id/acknowledge', async (req, res, next) => {
+alertsRouter.post('/:id/acknowledge', requireWriteAccess, async (req, res, next) => {
   try {
     const alert = await Alert.findByIdAndUpdate(
       req.params.id,
@@ -52,7 +52,7 @@ alertsRouter.post('/:id/acknowledge', async (req, res, next) => {
 });
 
 /** POST /api/alerts/:id/resolve - the condition is dealt with. */
-alertsRouter.post('/:id/resolve', async (req, res, next) => {
+alertsRouter.post('/:id/resolve', requireWriteAccess, async (req, res, next) => {
   try {
     const alert = await Alert.findByIdAndUpdate(
       req.params.id,

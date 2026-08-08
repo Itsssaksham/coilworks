@@ -6,7 +6,19 @@ const operatorSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     name: { type: String, required: true },
     passwordHash: { type: String, required: true, select: false },
-    role: { type: String, enum: ['admin', 'dispatcher', 'driver'], default: 'dispatcher' },
+    /**
+     * viewer     - read everything, change nothing. The role a public demo
+     *              login gets, so a stranger can explore the fleet without
+     *              being able to resolve alerts or empty a machine.
+     * driver     - read, plus completing stops on a run assigned to them.
+     * dispatcher - read plus fleet mutations: restock, alerts, planning runs.
+     * admin      - everything, including provisioning machines and minting keys.
+     */
+    role: {
+      type: String,
+      enum: ['viewer', 'driver', 'dispatcher', 'admin'],
+      default: 'viewer', // least privilege by default; escalation is explicit
+    },
   },
   { timestamps: true },
 );

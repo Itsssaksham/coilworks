@@ -6,7 +6,20 @@
  * actually did. If this passes, the ingest path, auth, transactions, aggregation
  * pipelines, geospatial queries, alert rules, and AI layer are all wired up.
  *
- * Usage:  npm run smoke        (with `npm run dev` already running)
+ * Usage:  DEMO_ADMIN_PASSWORD=<pw> npm run smoke   (with the API already running)
+ *
+ * The admin password is not a constant in this repository - the seed generates
+ * one unless DEMO_ADMIN_PASSWORD is set. Seed and smoke with the same value.
+ *
+ * NOTE: leave about a minute between runs. The suite performs four logins
+ * against a 10/min per-IP cap, so back-to-back runs trip it and fail with 429s
+ * that look like real defects. That is the limiter working correctly; it is only
+ * awkward for the test.
+ *
+ * (The ingest limiter used to cause the same problem more confusingly, because
+ * the rate-limit check exhausted the same machine the functional telemetry
+ * checks used. It now targets a different machine, so ingest tests are safely
+ * re-runnable.)
  */
 import assert from 'node:assert/strict';
 import { connect, disconnect } from './db.js';
@@ -60,14 +73,28 @@ async function main() {
   });
 
   // --- auth --------------------------------------------------------------
+  // The admin password is no longer a constant in the repository - the seed
+  // generates one unless DEMO_ADMIN_PASSWORD is set. Pass the same value here.
+  const adminPassword = process.env.DEMO_ADMIN_PASSWORD;
+  if (!adminPassword) {
+    console.log(
+      '\n  DEMO_ADMIN_PASSWORD is not set. Re-seed with a known password and pass it here:\n' +
+        '    DEMO_ADMIN_PASSWORD=<pw> npm run seed\n' +
+        '    DEMO_ADMIN_PASSWORD=<pw> npm run smoke\n',
+    );
+    await disconnect();
+    process.exit(1);
+  }
+
   let token;
-  await check('operator can log in', async () => {
+  await check('admin can log in', async () => {
     const { status, body } = await api('/api/auth/login', {
       method: 'POST',
-      body: { email: 'ops@coilworks.io', password: 'coilworks' },
+      body: { email: 'ops@coilworks.io', password: adminPassword },
     });
-    assert.equal(status, 200, `login returned ${status}`);
+    assert.equal(status, 200, `login returned ${status} - is DEMO_ADMIN_PASSWORD the one used to seed?`);
     assert.ok(body.token);
+    assert.equal(body.operator.role, 'admin');
     token = body.token;
   });
 
@@ -79,9 +106,112 @@ async function main() {
     assert.equal(status, 401);
   });
 
+  await check('the old hardcoded password no longer works', async () => {
+    // Regression guard: this was the repo-public credential that gave anyone
+    // who read seed.js admin on the deployed instance.
+    const { status } = await api('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'ops@coilworks.io', password: 'coilworks' },
+    });
+    assert.equal(status, 401, 'the admin account must not accept the old public password');
+  });
+
   await check('protected route rejects a missing token', async () => {
     const { status } = await api('/api/machines');
     assert.equal(status, 401);
+  });
+
+  // --- role boundary -----------------------------------------------------
+  //
+  // The demo is publicly reachable with a shareable read-only login, so these
+  // are the checks that matter most: they prove a viewer cannot mutate fleet
+  // state on the server, independently of whether the UI shows the button.
+  let viewerToken;
+  await check('the read-only demo account can log in', async () => {
+    const { status, body } = await api('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'viewer@coilworks.io', password: 'coilworks' },
+    });
+    assert.equal(status, 200, 'seed the database to create the viewer account');
+    assert.equal(body.operator.role, 'viewer');
+    viewerToken = body.token;
+  });
+
+  await check('a viewer can read the fleet', async () => {
+    const { status, body } = await api('/api/machines', { token: viewerToken });
+    assert.equal(status, 200);
+    assert.ok(body.machines.length > 0, 'read access must still work');
+  });
+
+  await check('a viewer CANNOT resolve an alert', async () => {
+    // Created here rather than reused from an earlier check: a freshly seeded
+    // database has no alerts, so depending on test order would make this pass
+    // or fail for the wrong reason.
+    const machine = await Machine.findOne({});
+    const alert = await Alert.create({
+      machineId: machine._id,
+      machineCode: machine.code,
+      type: 'jam',
+      severity: 'warning',
+      message: 'smoke test fixture',
+      dedupeKey: `smoke:${Date.now()}`,
+    });
+
+    try {
+      const { status, body } = await api(`/api/alerts/${alert._id}/resolve`, {
+        method: 'POST',
+        token: viewerToken,
+      });
+      assert.equal(status, 403, 'a viewer must not be able to resolve alerts');
+      assert.equal(body.yourRole, 'viewer');
+
+      const after = await Alert.findById(alert._id);
+      assert.notEqual(after.status, 'resolved', 'the alert must be untouched');
+    } finally {
+      await Alert.deleteOne({ _id: alert._id });
+    }
+  });
+
+  await check('a viewer CANNOT restock a machine', async () => {
+    const m = await Machine.findOne({});
+    const before = m.slots[0].qty;
+    const { status } = await api(`/api/machines/${m.code}/restock`, {
+      method: 'POST',
+      token: viewerToken,
+      body: { picks: [{ slotCode: m.slots[0].code, qty: 5 }] },
+    });
+    assert.equal(status, 403);
+    const after = await Machine.findById(m._id);
+    assert.equal(after.slots[0].qty, before, 'stock must be unchanged');
+  });
+
+  await check('a viewer CANNOT plan a restock run', async () => {
+    const { status } = await api('/api/runs/plan', {
+      method: 'POST',
+      token: viewerToken,
+      body: { name: 'viewer attempt', depotLat: 30.741, depotLng: 76.7794, horizonDays: 7, maxStops: 5 },
+    });
+    assert.equal(status, 403);
+  });
+
+  await check('a viewer CANNOT provision a machine', async () => {
+    const { status } = await api('/api/machines', {
+      method: 'POST',
+      token: viewerToken,
+      body: {
+        code: 'VM-9999', name: 'x', model: 'x', firmware: '1.0.0',
+        siteName: 'x', address: 'x', lat: 30.7, lng: 76.7,
+      },
+    });
+    assert.equal(status, 403);
+    assert.equal(await Machine.countDocuments({ code: 'VM-9999' }), 0);
+  });
+
+  await check('an admin CAN still do all of it', async () => {
+    const alert = await Alert.findOne({ status: 'open' });
+    if (!alert) return; // nothing open right now; the negative cases above carry the weight
+    const { status } = await api(`/api/alerts/${alert._id}/acknowledge`, { method: 'POST', token });
+    assert.equal(status, 200, 'the write role must not have been broken by the gate');
   });
 
   // --- WebSocket auth ----------------------------------------------------
@@ -391,11 +521,22 @@ async function main() {
 
   // --- rate limiting -----------------------------------------------------
   await check('ingest rate limit kicks in and sets Retry-After', async () => {
+    // Deliberately a DIFFERENT machine from the one the functional telemetry
+    // tests use. The limiter is keyed per machine and its window outlives a
+    // single run, so exhausting the shared machine's budget here would make the
+    // next run's telemetry tests fail with 429s that look like real defects.
+    const victim = await Machine.findOne({ code: { $ne: machine.code } }).sort({ code: -1 });
+    assert.ok(victim, 'need a second machine to exhaust');
+    const victimKey = generateMachineKey();
+    victim.apiKeyHash = victimKey.hash;
+    victim.apiKeyLast4 = victimKey.last4;
+    await victim.save();
+
     let limited = false;
     for (let i = 0; i < 130; i++) {
-      const res = await fetch(`${BASE}/api/ingest/${machine.code}/telemetry`, {
+      const res = await fetch(`${BASE}/api/ingest/${victim.code}/telemetry`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-machine-key': key.plain },
+        headers: { 'content-type': 'application/json', 'x-machine-key': victimKey.plain },
         body: JSON.stringify({ temperatureC: 4, powerOk: true }),
       });
       if (res.status === 429) {

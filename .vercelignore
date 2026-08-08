@@ -1,0 +1,30 @@
+# What not to upload to Vercel.
+#
+# Vercel only builds the client bundle here, so everything else is dead weight -
+# and two of these actively break the upload on Windows:
+#
+#   .mongo-data/  WiredTiger files held open by a running local mongod, which
+#                 makes the CLI fail with "EBUSY: resource busy or locked"
+#   node_modules/ reinstalled on Vercel anyway; uploading it is slow and pointless
+
+.mongo-data/
+node_modules/
+**/node_modules/
+client/dist/
+.git/
+.env
+.env.*
+*.log
+
+# Server-side code. The API runs elsewhere - it needs a long-lived process for
+# the WebSocket hub's change streams and the offline-sweep timer.
+server/
+
+# Local-only tooling and docs.
+scripts/
+Dockerfile
+.dockerignore
+docker-compose.yml
+render.yaml
+DEPLOY.md
+WORKBOOK.html

@@ -3,6 +3,16 @@ import { API_BASE } from './config.js';
 
 const TOKEN_KEY = 'coilworks.token';
 
+/** Roles allowed to change fleet state. Mirrors requireWriteAccess on the server. */
+export const WRITE_ROLES = ['dispatcher', 'admin'];
+
+/**
+ * Whether this operator can mutate. The server enforces this independently -
+ * this only decides what the UI offers, so a disabled button is a courtesy,
+ * not the security boundary.
+ */
+export const canWrite = (operator) => WRITE_ROLES.includes(operator?.role);
+
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (t) => localStorage.setItem(TOKEN_KEY, t);
 export const clearToken = () => localStorage.removeItem(TOKEN_KEY);

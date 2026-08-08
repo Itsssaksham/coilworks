@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, setToken } from '../api.js';
 
 export default function Login({ onAuthed }) {
-  const [email, setEmail] = useState('ops@coilworks.io');
+  const [email, setEmail] = useState('viewer@coilworks.io');
   const [password, setPassword] = useState('coilworks');
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -48,11 +48,14 @@ export default function Login({ onAuthed }) {
           {error && <div className="error">{error}</div>}
 
           <div className="hint">
-            Seeded operators:
+            <strong>Demo login</strong> — read-only.
             <br />
-            <span className="num">ops@coilworks.io</span> / coilworks (admin)
+            <span className="num">viewer@coilworks.io</span> / <span className="num">coilworks</span>
             <br />
-            <span className="num">dispatch@coilworks.io</span> / coilworks
+            <span className="faint">
+              Explore the whole fleet. Changing state (resolving alerts, restocking,
+              planning runs) needs a dispatcher account.
+            </span>
           </div>
         </div>
       </form>

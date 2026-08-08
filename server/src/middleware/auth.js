@@ -33,11 +33,25 @@ export function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.operator) return res.status(401).json({ error: 'Not authenticated' });
     if (!roles.includes(req.operator.role)) {
-      return res.status(403).json({ error: `Requires role: ${roles.join(' or ')}` });
+      return res.status(403).json({
+        error: `This action requires the ${roles.join(' or ')} role. You are signed in as ${req.operator.role}.`,
+        requiredRoles: roles,
+        yourRole: req.operator.role,
+      });
     }
     next();
   };
 }
+
+/**
+ * Guard for anything that changes fleet state.
+ *
+ * The demo is deployed publicly with a shareable read-only login, so this
+ * boundary is what stops a stranger resolving alerts or emptying a machine.
+ * Enforced here on the server - hiding a button in the UI is presentation, not
+ * a permission.
+ */
+export const requireWriteAccess = requireRole('dispatcher', 'admin');
 
 /* ------------------------------------------------------------------ *
  * Machine auth (hardware) - per-machine API keys

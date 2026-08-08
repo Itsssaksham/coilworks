@@ -1519,6 +1519,25 @@
     </details>
 
     <details class="q">
+      <summary>It's deployed publicly. What stops a stranger breaking your demo?</summary>
+      <div class="answer">
+        <p>
+          Start by admitting the original mistake, because it is the more
+          interesting half: the seed file hardcoded the admin password, and that
+          file is in a public repository — so anyone who read it had admin on the
+          live instance. Then the fix: a <code>viewer</code> role that can read
+          everything and mutate nothing, enforced by <code>requireWriteAccess</code>
+          on each route rather than by hiding buttons. The viewer password is
+          public on purpose, because the role cannot do damage; the write-capable
+          passwords are generated at seed time and never committed. The smoke
+          suite attempts every mutation as a viewer and asserts a 403 plus an
+          unchanged database — because a permission you have not tried to break is
+          not a permission you know you have.
+        </p>
+      </div>
+    </details>
+
+    <details class="q">
       <summary>How is the AI grounded? What stops it making things up?</summary>
       <div class="answer">
         <p>

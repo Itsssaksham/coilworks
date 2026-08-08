@@ -5,7 +5,7 @@ import FleetMap from '../components/FleetMap.jsx';
 // Sector 17, Chandigarh - the default depot the planner routes from.
 const DEPOT = { lat: 30.7410, lng: 76.7794 };
 
-export default function Runs({ machines }) {
+export default function Runs({ machines, canWrite = false }) {
   const [runs, setRuns] = useState([]);
   const [selected, setSelected] = useState(null);
   const [horizon, setHorizon] = useState(4);
@@ -61,7 +61,8 @@ export default function Runs({ machines }) {
                 <label className="faint" style={{ fontSize: 11, textTransform: 'uppercase' }}>Max stops</label>
                 <input type="number" min="1" max="40" value={maxStops} onChange={(e) => setMaxStops(e.target.value)} />
               </div>
-              <button className="primary" onClick={plan} disabled={busy}>
+              <button className="primary" onClick={plan} disabled={busy || !canWrite}
+                      title={canWrite ? undefined : 'Planning a run requires a dispatcher account'}>
                 {busy ? 'Planning...' : 'Plan run'}
               </button>
             </div>

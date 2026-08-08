@@ -67,11 +67,20 @@ Run the seed against Atlas from your machine (it is a one-off, and it is how you
 avoid shipping seed data in the image):
 
 ```bash
-MONGO_URI="<your atlas string>" npm run seed
+DEMO_ADMIN_PASSWORD="<pick one>" MONGO_URI="<your atlas string>" npm run seed
 ```
 
-That creates 16 machines across 12 sites, 21 days of sales history, and the two
-operator logins. Then build the indexes explicitly — production runs with
+That creates 16 machines across 12 sites, 21 days of sales history, and three
+operator logins.
+
+**Save the passwords it prints.** Only the read-only `viewer@coilworks.io`
+account has a password in this repository; the admin and dispatcher passwords are
+generated at seed time and shown once. That is deliberate — the instance is
+publicly reachable, so a write-capable credential committed to a public repo
+would give admin to anyone who read the file.
+
+Hand out `viewer@coilworks.io / coilworks` with the demo link. It can read
+everything and change nothing. Then build the indexes explicitly — production runs with
 `autoIndex` off so a deploy is never blocked by an index build:
 
 ```bash

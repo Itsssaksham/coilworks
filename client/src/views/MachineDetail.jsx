@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, money, relativeTime } from '../api.js';
 
-export default function MachineDetail({ code, onBack }) {
+export default function MachineDetail({ code, onBack, canWrite = false }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -93,9 +93,15 @@ export default function MachineDetail({ code, onBack }) {
         <section className="panel">
           <div className="panel-head">
             <h2>Planogram</h2>
-            <button className="primary" onClick={restockAll} disabled={busy || lowSlots.length === 0}>
-              {busy ? 'Loading...' : `Restock ${lowSlots.length} slot(s)`}
-            </button>
+            {canWrite ? (
+              <button className="primary" onClick={restockAll} disabled={busy || lowSlots.length === 0}>
+                {busy ? 'Loading...' : `Restock ${lowSlots.length} slot(s)`}
+              </button>
+            ) : (
+              <span className="faint" style={{ fontSize: 12 }}>
+                {lowSlots.length} slot(s) below par
+              </span>
+            )}
           </div>
           <div className="table-scroll">
             <table>

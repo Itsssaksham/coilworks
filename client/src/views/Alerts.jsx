@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api, relativeTime } from '../api.js';
 
-export default function Alerts({ alerts, onChanged, onOpenMachine }) {
+export default function Alerts({ alerts, onChanged, onOpenMachine, canWrite = false }) {
   const [triage, setTriage] = useState({}); // alertId -> triage result
   const [busy, setBusy] = useState({}); // alertId -> 'triage' | 'ack' | 'resolve'
   const [filter, setFilter] = useState('all');
@@ -102,14 +102,16 @@ export default function Alerts({ alerts, onChanged, onOpenMachine }) {
               <button onClick={() => runTriage(a)} disabled={busy[a._id] === 'triage'}>
                 {busy[a._id] === 'triage' ? 'Analyzing...' : t ? 'Re-triage' : 'Triage'}
               </button>
-              {a.status === 'open' && (
+              {canWrite && a.status === 'open' && (
                 <button onClick={() => act(a._id, () => api.acknowledgeAlert(a._id), 'ack')} disabled={!!busy[a._id]}>
                   Ack
                 </button>
               )}
-              <button onClick={() => act(a._id, () => api.resolveAlert(a._id), 'resolve')} disabled={!!busy[a._id]}>
-                Resolve
-              </button>
+              {canWrite && (
+                <button onClick={() => act(a._id, () => api.resolveAlert(a._id), 'resolve')} disabled={!!busy[a._id]}>
+                  Resolve
+                </button>
+              )}
             </div>
           </div>
         );

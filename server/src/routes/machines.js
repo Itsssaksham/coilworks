@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { Machine } from '../models/Machine.js';
 import { Alert } from '../models/Alert.js';
 import { Telemetry } from '../models/Telemetry.js';
-import { requireOperator, requireRole, generateMachineKey } from '../middleware/auth.js';
+import { requireOperator, requireRole, requireWriteAccess, generateMachineKey } from '../middleware/auth.js';
 import { nearestMachines } from '../services/geo.js';
 import { containsFilter, parsePaging } from '../util/query.js';
 
@@ -135,7 +135,7 @@ const restockSchema = z.object({
  * reporting 12 into a slot with room for 10 loaded 10, and the run should
  * record what physically fits.
  */
-machinesRouter.post('/:code/restock', async (req, res, next) => {
+machinesRouter.post('/:code/restock', requireWriteAccess, async (req, res, next) => {
   try {
     const parsed = restockSchema.safeParse(req.body);
     if (!parsed.success) {
