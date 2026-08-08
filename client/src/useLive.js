@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
+import { websocketUrl } from './config.js';
 
 /**
  * Subscribes to the server's change-stream feed.
@@ -44,8 +45,9 @@ export function useLive(onEvent) {
       }
       if (cancelled) return;
 
-      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      socket = new WebSocket(`${proto}://${window.location.host}/ws?ticket=${encodeURIComponent(ticket)}`);
+      // Built from the configured API origin, not window.location: on a split
+      // deploy the bundle is served from a different host than the socket.
+      socket = new WebSocket(websocketUrl(ticket));
 
       socket.onopen = () => {
         retry = 0;

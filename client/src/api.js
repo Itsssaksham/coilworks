@@ -1,4 +1,5 @@
 /** Thin API client. Holds the operator token and attaches it to every request. */
+import { API_BASE } from './config.js';
 
 const TOKEN_KEY = 'coilworks.token';
 
@@ -12,7 +13,8 @@ async function request(path, { method = 'GET', body } = {}) {
   const token = getToken();
   if (token) headers.authorization = `Bearer ${token}`;
 
-  const res = await fetch(`/api${path}`, {
+  // API_BASE is "" on a single-origin deploy, so this stays a relative URL there.
+  const res = await fetch(`${API_BASE}/api${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
