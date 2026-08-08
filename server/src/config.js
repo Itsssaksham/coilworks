@@ -3,6 +3,18 @@ import 'dotenv/config';
 const bool = (v, fallback) => (v == null ? fallback : /^(1|true|yes|on)$/i.test(v));
 const list = (v) => (v ? v.split(',').map((s) => s.trim()).filter(Boolean) : []);
 
+/**
+ * Origins, compared the way a browser sends them: scheme + host + port, no
+ * trailing slash, lower case. Pasting a URL out of a browser bar picks up a
+ * trailing slash, and an exact string match on that silently rejects every
+ * request - a one-character mistake that looks like a broken deploy.
+ */
+const originList = (v) => list(v).map(normalizeOrigin);
+
+export function normalizeOrigin(value) {
+  return value.trim().replace(/\/+$/, '').toLowerCase();
+}
+
 const DEFAULT_JWT_SECRET = 'coilworks-dev-secret-change-me';
 
 export const config = {
@@ -37,7 +49,7 @@ export const config = {
 
   // Origins allowed to call the API. Empty in development means "reflect the
   // request origin"; in production an empty list is a boot failure (see below).
-  corsOrigins: list(process.env.CORS_ORIGINS),
+  corsOrigins: originList(process.env.CORS_ORIGINS),
 
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || '',

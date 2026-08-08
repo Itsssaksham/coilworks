@@ -529,8 +529,22 @@ async function main() {
 
   // --- AI ----------------------------------------------------------------
   await check('alert triage returns a complete diagnosis', async () => {
-    const alert = await Alert.findOne({ status: { $ne: 'resolved' } });
-    assert.ok(alert, 'no alert to triage');
+    // Raise the alert this check triages instead of picking up whatever happens
+    // to be open. Since jams started resolving when the fault clears, a freshly
+    // seeded database has nothing unresolved by the time this runs, and the
+    // check failed with "no alert to triage" - a test-ordering artefact that
+    // read like a broken AI layer.
+    const target = (await Machine.findById(machine._id)).slots[0].code;
+    const raised = await api(`/api/ingest/${machine.code}/telemetry`, {
+      method: 'POST',
+      machineKey: key.plain,
+      body: { temperatureC: 4, powerOk: true, coilFaults: [target] },
+    });
+    assert.equal(raised.status, 202, `telemetry POST returned ${raised.status}`);
+
+    const alert = await Alert.findOne({ machineId: machine._id, type: 'jam', status: 'open' });
+    assert.ok(alert, 'expected an open jam alert to triage');
+
     const { status, body } = await api(`/api/alerts/${alert._id}/triage`, { method: 'POST', token });
     assert.equal(status, 200);
     for (const field of ['diagnosis', 'likelyCause', 'recommendedAction']) {
@@ -538,6 +552,13 @@ async function main() {
     }
     assert.equal(typeof body.triage.dispatchRequired, 'boolean');
     assert.ok(['claude', 'offline'].includes(body.provider));
+
+    // Put the machine back the way this check found it.
+    await api(`/api/ingest/${machine.code}/telemetry`, {
+      method: 'POST',
+      machineKey: key.plain,
+      body: { temperatureC: 4, powerOk: true, coilFaults: [] },
+    });
   });
 
   await check('ops assistant answers from real tool calls', async () => {

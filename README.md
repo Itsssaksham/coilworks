@@ -80,7 +80,7 @@ jamming, and a machine dropping off the network.
 npm run smoke
 ```
 
-32 checks against the running API: operator and machine-key auth, WebSocket
+40 checks against the running API: operator and machine-key auth, WebSocket
 ticket auth (including single-use enforcement), regex-injection resistance,
 ingest validation, alert dedupe, vend transactions, pagination clamps,
 aggregation correctness, geospatial ordering, route planning, AI triage,

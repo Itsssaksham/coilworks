@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import express from 'express';
 import cors from 'cors';
-import { config, isProduction, validateConfig } from './config.js';
+import { config, isProduction, normalizeOrigin, validateConfig } from './config.js';
 import { log } from './logger.js';
 import { connect } from './db.js';
 import { hub } from './realtime/hub.js';
@@ -60,20 +60,36 @@ function securityHeaders(_req, res, next) {
  * In production the allowlist is required and enforced (validateConfig refuses
  * to boot without it). In development an empty list reflects the request
  * origin, which is what makes the Vite proxy and a bare curl both work.
+ *
+ * Same-origin requests are always allowed, whatever the allowlist says. A
+ * browser does not normally send Origin on a same-origin GET, but it does on
+ * some requests and some intermediaries add one - and refusing those would take
+ * the served SPA down over a misconfigured env var, which is exactly the
+ * failure this served: an allowlist that did not name this host returned 403
+ * for the app's own JavaScript and left visitors a blank page.
  */
-function corsOptions() {
-  if (config.corsOrigins.length === 0) {
-    return { origin: true, credentials: true };
-  }
-  return {
-    origin(origin, callback) {
-      // No Origin header at all: server-to-server calls, curl, health probes.
-      if (!origin) return callback(null, true);
-      if (config.corsOrigins.includes(origin)) return callback(null, true);
-      callback(new Error(`Origin not allowed: ${origin}`));
-    },
-    credentials: true,
-  };
+function corsMiddleware() {
+  const allow = { origin: true, credentials: true };
+
+  return cors((req, callback) => {
+    const origin = req.headers.origin;
+
+    // No Origin header at all: server-to-server calls, curl, health probes.
+    if (!origin) return callback(null, allow);
+
+    let host = null;
+    try {
+      host = new URL(origin).host;
+    } catch {
+      // A malformed Origin is not something to reflect back.
+    }
+    if (host && host === req.headers.host) return callback(null, allow);
+
+    if (config.corsOrigins.length === 0) return callback(null, allow);
+    if (config.corsOrigins.includes(normalizeOrigin(origin))) return callback(null, allow);
+
+    callback(new Error(`Origin not allowed: ${origin}`));
+  });
 }
 
 export function createApp() {
@@ -81,7 +97,10 @@ export function createApp() {
 
   app.disable('x-powered-by');
   app.use(securityHeaders);
-  app.use(cors(corsOptions()));
+  // Scoped to the API deliberately. The SPA's own assets are served from this
+  // same origin and need no CORS decision at all; gating them meant a rejected
+  // origin took out the whole page rather than one cross-origin API call.
+  app.use('/api', corsMiddleware());
   app.use(express.json({ limit: '256kb' }));
 
   // Liveness: is the process up at all.
