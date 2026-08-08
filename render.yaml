@@ -1,0 +1,50 @@
+# Render blueprint. Point Render at this repository and it provisions the
+# service from here - no dashboard clicking beyond setting the two secrets.
+#
+#   https://dashboard.render.com/blueprints  ->  New Blueprint Instance
+#
+# Why Render: the free web-service tier needs no card, and it builds from the
+# Dockerfile directly. The tradeoff is that a free instance sleeps after ~15
+# minutes idle, so the first request after a quiet spell takes ~50s to wake.
+# That is fine for a portfolio demo and not fine for a real fleet.
+#
+# MongoDB is NOT provisioned here. Coilworks needs a replica set (change streams
+# and transactions), and Render has no managed MongoDB. Use a MongoDB Atlas M0
+# cluster - free, no card, and a replica set by default. See DEPLOY.md.
+
+services:
+  - type: web
+    name: coilworks
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: singapore # closest Render region to India; also: oregon, frankfurt
+    healthCheckPath: /api/health
+    autoDeploy: true
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      - key: API_PORT
+        value: 4000
+
+      # Generated once by Render and kept across deploys. Never printed, never
+      # in the repository - which is exactly what the boot-time validation in
+      # server/src/config.js refuses to start without.
+      - key: JWT_SECRET
+        generateValue: true
+
+      # Set in the Render dashboard after the first deploy, once you know the
+      # service URL. Must be the exact origin, e.g. https://coilworks.onrender.com
+      - key: CORS_ORIGINS
+        sync: false
+
+      # Your Atlas connection string. sync:false keeps it out of this file and
+      # out of git - Render prompts for it at blueprint creation.
+      - key: MONGO_URI
+        sync: false
+
+      # Optional. Leave unset and the AI features run on the offline analyzer.
+      - key: ANTHROPIC_API_KEY
+        sync: false
