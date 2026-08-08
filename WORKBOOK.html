@@ -1,0 +1,1501 @@
+<title>Coilworks — How It Works and Why</title>
+
+<style>
+  /* ------------------------------------------------------------------ *
+   * Tokens.
+   * Light  = engineering spec sheet: cool blue-grey paper, ink, amber marks.
+   * Dark   = the control room the product actually lives in (the app's own
+   *          warm-dark palette), so the two themes are two real places rather
+   *          than an inversion of each other.
+   * ------------------------------------------------------------------ */
+  :root {
+    --paper:      #eef1f4;
+    --raised:     #ffffff;
+    --sunk:       #e3e8ed;
+    --ink:        #0e1418;
+    --ink-2:      #45525c;
+    --ink-3:      #6d7c87;
+    --rule:       #ccd4db;
+    --rule-soft:  #dde3e9;
+
+    --signal:     #945800;   /* the product amber, darkened for AA on paper */
+    --signal-mark:#d98a12;   /* rules, markers, non-text uses */
+    --teal:       #0b5566;   /* second voice: consequences, what-ifs */
+
+    --good:       #1d6f47;
+    --warn:       #96560a;
+    --crit:       #a3241d;
+
+    --display: Bahnschrift, "DIN Alternate", "DIN Condensed", "Roboto Condensed",
+               "Arial Narrow", system-ui, sans-serif;
+    --body:    Charter, "Bitstream Charter", Cambria, Georgia, "Times New Roman", serif;
+    --mono:    "Cascadia Mono", Consolas, "SF Mono", ui-monospace, Menlo, monospace;
+
+    --measure: 68ch;
+    --shadow: 0 1px 2px rgba(14, 20, 24, 0.06), 0 4px 14px rgba(14, 20, 24, 0.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:      #14120f;
+      --raised:     #1c1917;
+      --sunk:       #100e0c;
+      --ink:        #ece7e1;
+      --ink-2:      #a89e94;
+      --ink-3:      #7d746c;
+      --rule:       #332e29;
+      --rule-soft:  #262220;
+
+      --signal:     #f0a020;
+      --signal-mark:#f0a020;
+      --teal:       #6fc3d6;
+
+      --good:       #4bc47c;
+      --warn:       #e8a33d;
+      --crit:       #ec6a63;
+
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  /* The viewer's toggle stamps data-theme on the root and must win both ways. */
+  :root[data-theme="light"] {
+    --paper: #eef1f4; --raised: #ffffff; --sunk: #e3e8ed;
+    --ink: #0e1418; --ink-2: #45525c; --ink-3: #6d7c87;
+    --rule: #ccd4db; --rule-soft: #dde3e9;
+    --signal: #945800; --signal-mark: #d98a12; --teal: #0b5566;
+    --good: #1d6f47; --warn: #96560a; --crit: #a3241d;
+    --shadow: 0 1px 2px rgba(14,20,24,.06), 0 4px 14px rgba(14,20,24,.05);
+  }
+  :root[data-theme="dark"] {
+    --paper: #14120f; --raised: #1c1917; --sunk: #100e0c;
+    --ink: #ece7e1; --ink-2: #a89e94; --ink-3: #7d746c;
+    --rule: #332e29; --rule-soft: #262220;
+    --signal: #f0a020; --signal-mark: #f0a020; --teal: #6fc3d6;
+    --good: #4bc47c; --warn: #e8a33d; --crit: #ec6a63;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- shell ---------- */
+
+  .wrap {
+    display: grid;
+    grid-template-columns: 216px minmax(0, 1fr);
+    gap: 48px;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 28px 120px;
+    align-items: start;
+  }
+
+  nav.rail {
+    position: sticky;
+    top: 0;
+    max-height: 100vh;
+    overflow-y: auto;
+    padding: 40px 0 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-family: var(--display);
+  }
+  .rail-title {
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-3); margin-bottom: 10px; padding-left: 11px;
+  }
+  .rail a {
+    display: block;
+    padding: 5px 11px;
+    border-left: 2px solid var(--rule-soft);
+    color: var(--ink-2);
+    text-decoration: none;
+    font-size: 14.5px;
+    letter-spacing: 0.01em;
+    transition: color 120ms, border-color 120ms;
+  }
+  .rail a:hover, .rail a:focus-visible { color: var(--ink); border-left-color: var(--signal-mark); }
+  .rail a:focus-visible { outline: 2px solid var(--signal-mark); outline-offset: 2px; }
+  .rail .rail-gap { height: 12px; }
+
+  main { padding: 40px 0 0; min-width: 0; }
+  main > * { max-width: var(--measure); }
+
+  /* Figures and wide tables break the reading measure. */
+  main > figure, main > .wide { max-width: 100%; }
+
+  /* ---------- masthead ---------- */
+
+  header.masthead {
+    max-width: 100%;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 22px;
+    margin-bottom: 34px;
+  }
+  .eyebrow {
+    font-family: var(--display);
+    font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--signal); margin-bottom: 12px;
+  }
+  h1 {
+    font-family: var(--display);
+    font-size: clamp(38px, 6vw, 62px);
+    line-height: 1.02;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-size: 19px; color: var(--ink-2); margin: 0; max-width: 62ch;
+    text-wrap: pretty;
+  }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 8px 22px;
+    margin-top: 20px;
+    font-family: var(--mono); font-size: 12.5px; color: var(--ink-3);
+  }
+  .meta a { color: var(--signal); }
+
+  /* ---------- headings ---------- */
+
+  h2 {
+    font-family: var(--display);
+    font-size: 30px; font-weight: 600; letter-spacing: -0.005em;
+    line-height: 1.15;
+    margin: 62px 0 6px;
+    padding-top: 18px;
+    border-top: 1px solid var(--rule);
+    max-width: 100%;
+    text-wrap: balance;
+  }
+  h2 .h2-num {
+    font-family: var(--mono); font-size: 13px; color: var(--signal);
+    display: block; margin-bottom: 6px; letter-spacing: 0.08em;
+  }
+  h3 {
+    font-family: var(--display);
+    font-size: 20px; font-weight: 600; letter-spacing: 0.005em;
+    margin: 34px 0 8px;
+    text-wrap: balance;
+  }
+  h4 {
+    font-family: var(--display);
+    font-size: 15px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-2);
+    margin: 26px 0 6px;
+  }
+
+  p { margin: 0 0 16px; text-wrap: pretty; }
+  a { color: var(--signal); text-underline-offset: 2px; }
+  strong { font-weight: 700; }
+  code {
+    font-family: var(--mono); font-size: 0.87em;
+    background: var(--sunk); padding: 1px 5px; border-radius: 3px;
+    border: 1px solid var(--rule-soft);
+  }
+  ul, ol { margin: 0 0 16px; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+  li::marker { color: var(--ink-3); }
+
+  /* ---------- the decision unit: the spine of this document ---------- */
+
+  .decision {
+    max-width: 100%;
+    background: var(--raised);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    margin: 26px 0 34px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .decision-head {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--rule);
+    background: linear-gradient(to right, color-mix(in srgb, var(--signal-mark) 9%, transparent), transparent 60%);
+  }
+  .decision-head h3 { margin: 0; font-size: 19px; }
+  .decision-q {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--ink-3); margin-bottom: 4px;
+  }
+  .decision-body { padding: 4px 20px 18px; }
+  .decision-body > div { padding-top: 14px; }
+  .decision-body > div + div { border-top: 1px solid var(--rule-soft); }
+  .decision-body p:last-child { margin-bottom: 0; }
+  .field-label {
+    font-family: var(--display);
+    font-size: 12.5px; letter-spacing: 0.12em; text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+  .field-label.chose { color: var(--signal); }
+  .field-label.why   { color: var(--ink-2); }
+  .field-label.swap  { color: var(--teal); }
+
+  /* The chosen thing, stated flat. */
+  .verdict {
+    font-family: var(--mono); font-size: 14.5px;
+    color: var(--ink); margin: 0 0 4px;
+  }
+
+  /* ---------- callouts ---------- */
+
+  .note {
+    max-width: 100%;
+    border-left: 3px solid var(--teal);
+    background: color-mix(in srgb, var(--teal) 7%, transparent);
+    padding: 14px 18px; margin: 24px 0;
+    border-radius: 0 3px 3px 0;
+    font-size: 16px;
+  }
+  .note p:last-child { margin-bottom: 0; }
+  .note .note-label {
+    font-family: var(--display); font-size: 12px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--teal); display: block; margin-bottom: 4px;
+  }
+  .note.trap { border-left-color: var(--crit); background: color-mix(in srgb, var(--crit) 7%, transparent); }
+  .note.trap .note-label { color: var(--crit); }
+
+  /* ---------- figures ---------- */
+
+  figure { margin: 34px 0; }
+  figure svg { display: block; width: 100%; max-width: 100%; height: auto; }
+  figcaption {
+    font-size: 14.5px; color: var(--ink-2); margin-top: 12px;
+    max-width: 64ch; text-wrap: pretty;
+  }
+  figcaption b { font-family: var(--display); letter-spacing: 0.04em; color: var(--ink); font-weight: 600; }
+
+  /* ---------- tables ---------- */
+
+  .table-scroll { overflow-x: auto; margin: 24px 0; -webkit-overflow-scrolling: touch; }
+  table {
+    border-collapse: collapse; width: 100%; font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+  th {
+    font-family: var(--display); font-size: 12.5px; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--ink-2); text-align: left;
+    padding: 9px 14px 9px 0; border-bottom: 1.5px solid var(--rule);
+    white-space: nowrap;
+  }
+  td { padding: 11px 14px 11px 0; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td code { white-space: nowrap; }
+
+  /* ---------- sequence (a real ordered trace) ---------- */
+
+  ol.trace { list-style: none; padding: 0; margin: 26px 0; counter-reset: step; max-width: 100%; }
+  ol.trace > li {
+    counter-increment: step;
+    display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 16px;
+    padding-bottom: 20px; margin-bottom: 0;
+    position: relative;
+  }
+  ol.trace > li::before {
+    content: counter(step);
+    font-family: var(--mono); font-size: 12px;
+    width: 26px; height: 26px; border-radius: 50%;
+    display: grid; place-items: center;
+    border: 1.5px solid var(--signal-mark); color: var(--signal);
+    background: var(--paper);
+    z-index: 1;
+  }
+  /* The connecting line makes it read as one path, not five facts. */
+  ol.trace > li:not(:last-child)::after {
+    content: ""; position: absolute; left: 13px; top: 26px; bottom: 0;
+    width: 1.5px; background: var(--rule);
+  }
+  ol.trace .step-title { font-family: var(--display); font-size: 17px; font-weight: 600; margin-bottom: 2px; }
+  ol.trace .step-where { font-family: var(--mono); font-size: 12px; color: var(--ink-3); margin-bottom: 6px; }
+  ol.trace p { margin-bottom: 0; font-size: 16px; }
+
+  /* ---------- interview questions ---------- */
+
+  details.q {
+    max-width: 100%;
+    border: 1px solid var(--rule); border-radius: 3px;
+    margin-bottom: 10px; background: var(--raised);
+    overflow: hidden;
+  }
+  details.q summary {
+    padding: 13px 18px; cursor: pointer;
+    font-family: var(--display); font-size: 16.5px; font-weight: 600;
+    list-style: none; display: flex; gap: 12px; align-items: baseline;
+  }
+  details.q summary::-webkit-details-marker { display: none; }
+  details.q summary::before {
+    content: "+"; font-family: var(--mono); color: var(--signal); font-size: 16px; flex: none;
+  }
+  details.q[open] summary::before { content: "–"; }
+  details.q summary:hover { background: var(--sunk); }
+  details.q summary:focus-visible { outline: 2px solid var(--signal-mark); outline-offset: -2px; }
+  details.q .answer { padding: 0 18px 16px 42px; font-size: 16px; border-top: 1px solid var(--rule-soft); padding-top: 14px; }
+  details.q .answer p:last-child { margin-bottom: 0; }
+
+  /* ---------- misc ---------- */
+
+  .lede { font-size: 18.5px; color: var(--ink-2); }
+  .pill {
+    display: inline-block; font-family: var(--mono); font-size: 11.5px;
+    padding: 1px 7px; border-radius: 3px; border: 1px solid currentColor;
+    letter-spacing: 0.03em; vertical-align: 1px;
+  }
+  .pill.good { color: var(--good); }
+  .pill.warn { color: var(--warn); }
+  .pill.crit { color: var(--crit); }
+
+  footer.end {
+    max-width: 100%;
+    margin-top: 72px; padding-top: 22px;
+    border-top: 2px solid var(--ink);
+    font-family: var(--mono); font-size: 13px; color: var(--ink-3);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
+
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 20px 80px; }
+    nav.rail { position: static; max-height: none; padding: 28px 0 0; }
+    .rail { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+    .rail a { border-left: none; border: 1px solid var(--rule-soft); border-radius: 3px; padding: 4px 10px; font-size: 13px; }
+    .rail-title { width: 100%; padding-left: 0; }
+    body { font-size: 16.5px; }
+    main { padding-top: 26px; }
+  }
+
+  html { scroll-behavior: smooth; }
+  :target { scroll-margin-top: 20px; }
+</style>
+
+<div class="wrap">
+
+  <nav class="rail" aria-label="Contents">
+    <div class="rail-title">Contents</div>
+    <a href="#model">The mental model</a>
+    <a href="#heartbeat">Follow one heartbeat</a>
+    <div class="rail-gap"></div>
+    <a href="#database">Why MongoDB</a>
+    <a href="#replica">Why a replica set</a>
+    <a href="#timeseries">Why time-series</a>
+    <a href="#embedding">Why embedded slots</a>
+    <a href="#streams">Why change streams</a>
+    <a href="#transport">Why WebSockets</a>
+    <a href="#wsauth">Why ticket auth</a>
+    <a href="#express">Why plain Express</a>
+    <a href="#toolloop">Why a hand-written AI loop</a>
+    <div class="rail-gap"></div>
+    <a href="#forecast">The forecast pipeline</a>
+    <a href="#routing">The routing algorithm</a>
+    <div class="rail-gap"></div>
+    <a href="#failure">What breaks, and how</a>
+    <a href="#interview">Questions to be ready for</a>
+  </nav>
+
+  <main>
+
+    <header class="masthead">
+      <div class="eyebrow">Coilworks · Engineering Workbook</div>
+      <h1>How this system works, and why it is built this way</h1>
+      <p class="standfirst">
+        A vending fleet platform, taken apart. Every section answers three things:
+        what the mechanism actually does, why this technology was chosen over the
+        obvious alternative, and what would change if you swapped it.
+      </p>
+      <div class="meta">
+        <span>MERN · MongoDB · Express · React · Node</span>
+        <span><a href="https://github.com/Itsssaksham/coilworks">github.com/Itsssaksham/coilworks</a></span>
+        <span>32 end-to-end tests</span>
+      </div>
+    </header>
+
+    <p class="lede">
+      Coilworks operates a fleet of vending machines. Machines report telemetry;
+      the platform turns that into live fleet state, alerts, depletion forecasts,
+      and route-ordered restock runs. The interesting part is not the CRUD — it is
+      that four different MongoDB capabilities each solve a problem that would
+      otherwise need a separate piece of infrastructure.
+    </p>
+
+    <!-- ============================================================ -->
+    <h2 id="model"><span class="h2-num">01</span>The mental model</h2>
+
+    <p>
+      Hold four facts and the rest follows. <strong>Machines push, they are never
+      polled</strong> — a controller in the field heartbeats every 30 seconds over
+      an authenticated HTTP endpoint. <strong>Every write lands in MongoDB
+      first</strong>, and the database is what notifies everyone else.
+      <strong>The browser never polls either</strong> — MongoDB tails its own
+      oplog and the server forwards those events down a WebSocket.
+      <strong>Reads are computed, not stored</strong> — forecasts and routes are
+      derived on demand from sales history, so there is no cache to invalidate.
+    </p>
+
+    <figure>
+      <svg viewBox="0 0 880 400" role="img"
+           aria-label="Data flow: machines POST telemetry and vends to the Express API, which writes to MongoDB; MongoDB change streams notify the WebSocket hub, which pushes to browsers. Analytics endpoints read back from MongoDB on demand.">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="currentColor"/>
+          </marker>
+          <marker id="ah-sig" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="var(--signal-mark)"/>
+          </marker>
+        </defs>
+
+        <g fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="14"  y="150" width="150" height="86" rx="3"/>
+          <rect x="290" y="150" width="170" height="86" rx="3"/>
+          <rect x="576" y="150" width="170" height="86" rx="3"/>
+          <rect x="576" y="20"  width="170" height="80" rx="3"/>
+          <rect x="290" y="296" width="170" height="72" rx="3" stroke-dasharray="4 3"/>
+        </g>
+
+        <g font-family="var(--display)" font-size="14" fill="currentColor" text-anchor="middle">
+          <text x="89"  y="185">Machine</text>
+          <text x="89"  y="203">controllers</text>
+          <text x="375" y="185">Express API</text>
+          <text x="375" y="203">auth · rules · queries</text>
+          <text x="661" y="185">MongoDB</text>
+          <text x="661" y="203">replica set</text>
+          <text x="661" y="55">WebSocket hub</text>
+          <text x="661" y="73">fan-out</text>
+          <text x="375" y="330">Browsers</text>
+          <text x="375" y="348">React dashboard</text>
+        </g>
+
+        <g font-family="var(--mono)" font-size="11" fill="currentColor" text-anchor="middle">
+          <text x="89" y="222" fill="var(--ink-3)">simulated here</text>
+        </g>
+
+        <!-- machine -> api -->
+        <g stroke="currentColor" stroke-width="1.5" marker-end="url(#ah)">
+          <line x1="164" y1="180" x2="286" y2="180"/>
+          <line x1="460" y1="172" x2="572" y2="172"/>
+        </g>
+        <!-- api reads back -->
+        <g stroke="currentColor" stroke-width="1.5" marker-end="url(#ah)" stroke-dasharray="4 3">
+          <line x1="572" y1="216" x2="464" y2="216"/>
+        </g>
+
+        <!-- mongo -> hub (the signal path) -->
+        <g stroke="var(--signal-mark)" stroke-width="2" marker-end="url(#ah-sig)">
+          <line x1="661" y1="146" x2="661" y2="104"/>
+          <path d="M 576 60 L 470 60 L 470 300 L 464 300"/>
+        </g>
+
+        <!-- browser -> api (REST) -->
+        <g stroke="currentColor" stroke-width="1.5" marker-end="url(#ah)" stroke-dasharray="4 3">
+          <line x1="330" y1="292" x2="330" y2="240"/>
+        </g>
+
+        <g font-family="var(--mono)" font-size="11.5" fill="currentColor" text-anchor="middle">
+          <text x="225" y="172">POST telemetry</text>
+          <text x="225" y="330" fill="var(--ink-3)">every 30s</text>
+          <text x="516" y="164">writes</text>
+          <text x="518" y="234" fill="var(--ink-3)">aggregations</text>
+          <text x="300" y="270" fill="var(--ink-3)">REST</text>
+        </g>
+        <g font-family="var(--mono)" font-size="11.5" fill="var(--signal)" text-anchor="middle">
+          <text x="661" y="126">change stream</text>
+          <text x="470" y="48">push</text>
+        </g>
+      </svg>
+      <figcaption>
+        <b>Solid arrows are writes and pushes; dashed are pull-on-demand reads.</b>
+        The amber path is the one that makes the dashboard live: MongoDB itself
+        reports the change, so no component in this picture runs a timer asking
+        “has anything happened?”
+      </figcaption>
+    </figure>
+
+    <!-- ============================================================ -->
+    <h2 id="heartbeat"><span class="h2-num">02</span>Follow one heartbeat</h2>
+
+    <p>
+      This is a genuine ordered trace — each step depends on the one before it.
+      A machine sends one telemetry POST, and this is everything that happens.
+    </p>
+
+    <ol class="trace">
+      <li>
+        <div>
+          <div class="step-title">The machine authenticates as itself</div>
+          <div class="step-where">middleware/auth.js → requireMachine</div>
+          <p>
+            The request carries <code>X-Machine-Key</code>. The server hashes it and
+            compares against the stored hash with <code>timingSafeEqual</code>, not
+            <code>===</code>. A machine key authorises writes for exactly one machine
+            and reads nothing — so a controller pulled off a wall and dismantled
+            gives up very little.
+          </p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <div class="step-title">The payload is validated, then appended</div>
+          <div class="step-where">routes/ingest.js → Telemetry.create</div>
+          <p>
+            A Zod schema rejects anything malformed with the offending field named.
+            The reading is appended to the time-series collection. Nothing is
+            updated — telemetry is history, and history does not change.
+          </p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <div class="step-title">Latest values are denormalised onto the machine</div>
+          <div class="step-where">routes/ingest.js → machine.save()</div>
+          <p>
+            Temperature, cash, signal, and status are copied onto the machine
+            document. This is the write the dashboard actually watches. Without it,
+            rendering a fleet list would mean one aggregation per machine.
+          </p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <div class="step-title">The rules engine runs against the new state</div>
+          <div class="step-where">services/alerts.js → evaluateMachine</div>
+          <p>
+            Temperature, power, jams, cash level, and every slot are checked. Alerts
+            are keyed so a condition that persists stays one alert instead of one per
+            heartbeat, and conditions that clear resolve themselves.
+          </p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <div class="step-title">MongoDB tells everyone, unprompted</div>
+          <div class="step-where">realtime/hub.js → Machine.watch()</div>
+          <p>
+            The change stream fires on the write from step 3, the hub forwards it to
+            every subscribed socket, and React merges it into state. From heartbeat to
+            pixel with no polling anywhere — and no message broker either.
+          </p>
+        </div>
+      </li>
+    </ol>
+
+    <!-- ============================================================ -->
+    <h2 id="database"><span class="h2-num">03</span>Why MongoDB and not PostgreSQL</h2>
+
+    <div class="decision">
+      <div class="decision-head">
+        <div class="decision-q">The decision</div>
+        <h3>Document store over a relational database</h3>
+      </div>
+      <div class="decision-body">
+        <div>
+          <div class="field-label chose">What we used</div>
+          <p class="verdict">MongoDB 8, single replica set</p>
+        </div>
+        <div>
+          <div class="field-label why">Why</div>
+          <p>
+            Honestly? Postgres would model this domain fine — arguably better, since
+            slots and sales are relational in shape. The reason MongoDB wins here is
+            not the document model, it is that <strong>four separate infrastructure
+            needs collapse into one system</strong>: time-series storage, geospatial
+            indexing, a change feed, and transactions. On Postgres that is TimescaleDB
+            plus PostGIS plus <code>LISTEN/NOTIFY</code> or Debezium — three
+            extensions and a lot more to operate.
+          </p>
+          <p>
+            The planogram also genuinely suits embedding: twenty slots that are always
+            read and written with their machine and never queried alone.
+          </p>
+        </div>
+        <div>
+          <div class="field-label swap">What if you changed it</div>
+          <p>
+            <strong>Postgres + Timescale + PostGIS:</strong> stronger referential
+            integrity and a much better story for reporting joins. You would gain real
+            foreign keys — right now nothing at the database level stops a sale
+            referencing a deleted machine. You would lose the one-system simplicity,
+            and the live feed becomes the hard part rather than a free one.
+          </p>
+          <p>
+            <strong>MongoDB without the replica set:</strong> the app does not start.
+            That is not a stylistic preference — see the next section.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="replica"><span class="h2-num">04</span>Why the replica set is non-negotiable</h2>
+
+    <p>
+      This trips people up, so it is worth being precise. A replica set here is not
+      about redundancy or failover — it is a single node. It is there because two
+      features the app depends on are implemented <em>on top of the oplog</em>, and a
+      standalone <code>mongod</code> does not keep one.
+    </p>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Feature</th><th>Used for</th><th>Standalone mongod</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>watch()</code> change streams</td>
+            <td>The entire live dashboard</td>
+            <td><span class="pill crit">unavailable</span> — throws on open</td>
+          </tr>
+          <tr>
+            <td>Multi-document transactions</td>
+            <td>Atomic vend: slot decrement + sale insert</td>
+            <td><span class="pill crit">unavailable</span> — throws on commit</td>
+          </tr>
+          <tr>
+            <td>Time-series collections</td>
+            <td>Telemetry storage</td>
+            <td><span class="pill good">works</span></td>
+          </tr>
+          <tr>
+            <td>2dsphere geospatial</td>
+            <td>Restock routing</td>
+            <td><span class="pill good">works</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <span class="note-label">How the app handles it</span>
+      <p>
+        <code>db.js</code> runs <code>hello</code> at boot and checks for
+        <code>setName</code>. No replica set means it refuses to start, naming the fix.
+        The alternative — booting happily and serving a dashboard that never updates —
+        is a far worse failure, because it looks like it works.
+      </p>
+    </div>
+
+    <p>
+      Practically this costs almost nothing. Locally it is one extra flag
+      (<code>--replSet rs0</code>) and one <code>rs.initiate()</code>. On MongoDB
+      Atlas even the free tier is a replica set, so there is nothing to configure at
+      all.
+    </p>
+
+    <!-- ============================================================ -->
+    <h2 id="timeseries"><span class="h2-num">05</span>Why a time-series collection</h2>
+
+    <div class="decision">
+      <div class="decision-head">
+        <div class="decision-q">The decision</div>
+        <h3>Native time-series, not an ordinary collection</h3>
+      </div>
+      <div class="decision-body">
+        <div>
+          <div class="field-label chose">What we used</div>
+          <p class="verdict">timeField: ts · metaField: machineId · granularity: minutes</p>
+        </div>
+        <div>
+          <div class="field-label why">Why</div>
+          <p>
+            Telemetry is the highest-volume thing in the system: 16 machines every 30
+            seconds is 46,000 documents a day, and a real fleet is thousands of
+            machines. A time-series collection buckets many readings for one machine
+            into a single stored document and stores fields column-wise, which cuts
+            storage several-fold and makes “last two hours for this machine” a
+            contiguous read rather than a scattered index walk.
+          </p>
+          <p>
+            The second win is <code>expireAfterSeconds</code>. Old telemetry deletes
+            itself. No cron job, no cleanup script, no table that quietly grows until
+            someone notices.
+          </p>
+        </div>
+        <div>
+          <div class="field-label swap">What if you changed it</div>
+          <p>
+            <strong>An ordinary collection:</strong> everything still works — you would
+            add a TTL index and a compound index on <code>{machineId, ts}</code> and
+            never notice a difference at 16 machines. At fleet scale you would notice:
+            more disk, slower range scans, and TTL deletes competing with your writes.
+          </p>
+          <p>
+            <strong>What you give up by choosing it:</strong> real constraints, not
+            theoretical ones. Time-series documents <em>cannot be updated or deleted
+            individually</em>, and the meta and time fields are immutable. The seed
+            script has to <code>drop()</code> the whole collection rather than
+            <code>deleteMany({})</code>. If telemetry ever needed correcting in place,
+            this would be the wrong choice.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="embedding"><span class="h2-num">06</span>Why slots are embedded</h2>
+
+    <div class="decision">
+      <div class="decision-head">
+        <div class="decision-q">The decision</div>
+        <h3>Planogram embedded in the machine document</h3>
+      </div>
+      <div class="decision-body">
+        <div>
+          <div class="field-label chose">What we used</div>
+          <p class="verdict">machine.slots[] — array of ~20 subdocuments</p>
+        </div>
+        <div>
+          <div class="field-label why">Why</div>
+          <p>
+            The test for embedding is: is this data ever needed without its parent, and
+            is it bounded? Here, no and yes. A slot has no meaning apart from its
+            machine, nothing ever queries slots across machines, and a machine has
+            twenty of them, not twenty thousand. One read gets the whole machine, and
+            one write updates it atomically without a transaction.
+          </p>
+        </div>
+        <div>
+          <div class="field-label swap">What if you changed it</div>
+          <p>
+            <strong>A separate slots collection:</strong> every machine read becomes a
+            join, and the atomic “decrement this slot” becomes a second write to
+            coordinate. You would gain the ability to query slots globally
+            (“every A1 across the fleet”) without <code>$unwind</code> — which the
+            forecast pipeline does anyway.
+          </p>
+          <p>
+            <strong>Where embedding would break:</strong> if slots grew unbounded, or
+            if two writers updated different slots on one machine concurrently. The
+            second is real — the current code reads the machine, mutates a slot, and
+            saves the whole document, so two simultaneous vends on different slots can
+            clobber each other. At one controller per machine that cannot happen. With
+            a mobile app vending from the same machine, it could, and the fix is a
+            targeted <code>$inc</code> on the positional element rather than a
+            whole-document save.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="streams"><span class="h2-num">07</span>Why change streams beat polling</h2>
+
+    <p>
+      This is the decision that most shapes how the app feels, so it is worth seeing
+      rather than reading.
+    </p>
+
+    <figure>
+      <svg viewBox="0 0 880 300" role="img"
+           aria-label="Comparison. Polling: each browser runs a timer that queries the API on an interval, so load scales with clients times frequency and updates lag by up to one interval. Change streams: MongoDB notifies the server once per write and the server pushes to all browsers, so one write produces one notification regardless of client count.">
+        <defs>
+          <marker id="p1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="currentColor"/>
+          </marker>
+          <marker id="p2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="var(--signal-mark)"/>
+          </marker>
+        </defs>
+
+        <line x1="440" y1="16" x2="440" y2="284" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4" opacity="0.35"/>
+
+        <!-- LEFT: polling -->
+        <text x="20" y="30" font-family="var(--display)" font-size="15" fill="currentColor" font-weight="600">POLLING</text>
+        <text x="20" y="48" font-family="var(--mono)" font-size="11" fill="var(--ink-3)">what we did not do</text>
+
+        <g fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="20"  y="80"  width="96" height="34" rx="3"/>
+          <rect x="20"  y="128" width="96" height="34" rx="3"/>
+          <rect x="20"  y="176" width="96" height="34" rx="3"/>
+          <rect x="212" y="128" width="86" height="34" rx="3"/>
+          <rect x="330" y="128" width="74" height="34" rx="3"/>
+        </g>
+        <g font-family="var(--display)" font-size="12.5" fill="currentColor" text-anchor="middle">
+          <text x="68"  y="102">Browser 1</text>
+          <text x="68"  y="150">Browser 2</text>
+          <text x="68"  y="198">Browser 3</text>
+          <text x="255" y="150">API</text>
+          <text x="367" y="150">Mongo</text>
+        </g>
+        <g stroke="currentColor" stroke-width="1.5" marker-end="url(#p1)">
+          <path d="M 116 97  L 170 97  L 170 140 L 208 140"/>
+          <line x1="116" y1="145" x2="208" y2="145"/>
+          <path d="M 116 193 L 170 193 L 170 152 L 208 152"/>
+          <line x1="298" y1="145" x2="326" y2="145"/>
+        </g>
+        <g font-family="var(--mono)" font-size="11" fill="currentColor" text-anchor="middle">
+          <text x="163" y="232">every 5s, each</text>
+          <text x="163" y="248" fill="var(--crit)">3 clients = 36 queries/min</text>
+          <text x="163" y="266" fill="var(--ink-3)">up to 5s stale</text>
+        </g>
+
+        <!-- RIGHT: change streams -->
+        <text x="472" y="30" font-family="var(--display)" font-size="15" fill="var(--signal)" font-weight="600">CHANGE STREAMS</text>
+        <text x="472" y="48" font-family="var(--mono)" font-size="11" fill="var(--ink-3)">what we did</text>
+
+        <g fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="764" y="80"  width="96" height="34" rx="3"/>
+          <rect x="764" y="128" width="96" height="34" rx="3"/>
+          <rect x="764" y="176" width="96" height="34" rx="3"/>
+          <rect x="590" y="128" width="86" height="34" rx="3"/>
+          <rect x="472" y="128" width="74" height="34" rx="3"/>
+        </g>
+        <g font-family="var(--display)" font-size="12.5" fill="currentColor" text-anchor="middle">
+          <text x="812" y="102">Browser 1</text>
+          <text x="812" y="150">Browser 2</text>
+          <text x="812" y="198">Browser 3</text>
+          <text x="633" y="150">Hub</text>
+          <text x="509" y="150">Mongo</text>
+        </g>
+        <g stroke="var(--signal-mark)" stroke-width="2" marker-end="url(#p2)">
+          <line x1="546" y1="145" x2="586" y2="145"/>
+          <path d="M 676 140 L 718 140 L 718 97  L 760 97"/>
+          <line x1="676" y1="145" x2="760" y2="145"/>
+          <path d="M 676 152 L 718 152 L 718 193 L 760 193"/>
+        </g>
+        <g font-family="var(--mono)" font-size="11" fill="currentColor" text-anchor="middle">
+          <text x="620" y="232">1 write = 1 notification</text>
+          <text x="620" y="248" fill="var(--good)">any number of clients</text>
+          <text x="620" y="266" fill="var(--ink-3)">arrives in milliseconds</text>
+        </g>
+      </svg>
+      <figcaption>
+        <b>The difference is where the arrows start.</b> Polling has every client
+        asking on a timer, so cost grows with clients × frequency and staleness is
+        bounded by the interval. With change streams the database initiates, once
+        per write, and the fan-out is free — adding the tenth dashboard costs nothing.
+      </figcaption>
+    </figure>
+
+    <div class="decision">
+      <div class="decision-head">
+        <div class="decision-q">The decision</div>
+        <h3>The database as the event source</h3>
+      </div>
+      <div class="decision-body">
+        <div>
+          <div class="field-label chose">What we used</div>
+          <p class="verdict">Model.watch() with resume tokens → WebSocket fan-out</p>
+        </div>
+        <div>
+          <div class="field-label why">Why</div>
+          <p>
+            The alternative to polling is usually a message broker: publish to Kafka or
+            Redis on every write, subscribe in the API. That works, but it introduces a
+            <strong>dual-write problem</strong> — the database write and the publish can
+            disagree. If the publish fails after the write commits, the dashboard is
+            permanently wrong and nothing detects it.
+          </p>
+          <p>
+            Change streams read the oplog, which <em>is</em> the write. There is no
+            second write to get out of sync, and no broker to run.
+          </p>
+        </div>
+        <div>
+          <div class="field-label swap">What if you changed it</div>
+          <p>
+            <strong>Redis pub/sub:</strong> this is the actual upgrade path, and it is
+            needed for a different reason — not correctness, but horizontal scale. The
+            current fan-out is in-process, so two API instances behind a load balancer
+            each see the change stream but only reach their own sockets. That is fine;
+            what breaks is rate limiting, which is also in-process. Redis fixes both.
+          </p>
+          <p>
+            <strong>Kafka:</strong> right if telemetry needed replay, multiple
+            independent consumers, or retention beyond the oplog. Here it would be a
+            broker to operate for one consumer.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="note trap">
+      <span class="note-label">The trap this nearly fell into</span>
+      <p>
+        A change stream that errors is <em>dead</em>, and the browser cannot tell —
+        the page keeps rendering the last data it received, with a green “live”
+        indicator over frozen numbers. That is worse than a crash, because it lies.
+        The hub now tracks a resume token, reconnects with backoff, and pushes a
+        <code>health</code> frame so the UI shows an amber <strong>stale</strong>
+        state instead. If the token itself has expired past the oplog, it restarts
+        from now and accepts the gap rather than retrying forever.
+      </p>
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="transport"><span class="h2-num">08</span>Why WebSockets and not SSE</h2>
+
+    <div class="decision">
+      <div class="decision-head">
+        <div class="decision-q">The decision</div>
+        <h3>WebSocket over Server-Sent Events</h3>
+      </div>
+      <div class="decision-body">
+        <div>
+          <div class="field-label chose">What we used</div>
+          <p class="verdict">ws, one connection per browser, topic subscriptions</p>
+        </div>
+        <div>
+          <div class="field-label why">Why</div>
+          <p>
+            The client talks back. It sends <code>subscribe</code> to narrow which
+            topics it wants, and the server sends ping frames to reap sockets that
+            stopped answering — laptops that slept, connections a proxy half-closed.
+            SSE is one-directional, so both would need a side channel.
+          </p>
+        </div>
+        <div>
+          <div class="field-label swap">What if you changed it</div>
+          <p>
+            <strong>SSE:</strong> genuinely simpler, and it survives proxies better
+            because it is ordinary HTTP. It also reconnects on its own with
+            <code>Last-Event-ID</code>, which maps neatly onto resume tokens. If the
+            client never needed to talk back, SSE would be the better call — this is
+            the closest decision in the document.
+          </p>
+          <p>
+            <strong>Long polling:</strong> works everywhere, and costs a request per
+            update per client — the polling problem with extra steps.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="wsauth"><span class="h2-num">09</span>Why WebSocket auth uses tickets</h2>
+
+    <p>
+      The original build had a real hole: <code>/ws</code> accepted any connection and
+      streamed the whole fleet — machine locations, cash levels, stock. The REST API
+      was behind a token; the socket was behind nothing.
+    </p>
+
+    <p>
+      Fixing it runs into a browser constraint: <strong>you cannot set headers on a
+      WebSocket handshake</strong>. There is no way to send
+      <code>Authorization: Bearer</code>. So the credential has to travel in the URL —
+      and URLs end up in proxy logs, access logs, and browser history.
+    </p>
+
+    <div class="decision">
+      <div class="decision-head">
+        <div class="decision-q">The decision</div>
+        <h3>Single-use tickets, not the session token</h3>
+      </div>
+      <div class="decision-body">
+        <div>
+          <div class="field-label chose">What we used</div>
+          <p class="verdict">POST /api/auth/ws-ticket → 30s, one-time-use token in the query</p>
+        </div>
+        <div>
+          <div class="field-label why">Why</div>
+          <p>
+            The ticket is minted over the already-authenticated REST API, expires in
+            thirty seconds, and is deleted the moment it is redeemed. A ticket sitting
+            in a log is worthless by the time anyone reads it. A twelve-hour session
+            JWT in the same place is a full account compromise.
+          </p>
+        </div>
+        <div>
+          <div class="field-label swap">What if you changed it</div>
+          <p>
+            <strong>JWT in the query string:</strong> what most tutorials do. It works,
+            and it puts a long-lived credential everywhere URLs are recorded.
+          </p>
+          <p>
+            <strong>Cookie auth:</strong> the browser sends cookies on the WS handshake
+            automatically, so no ticket is needed — but then you own CSRF, and the API
+            stops being usable from a non-browser client without a second scheme.
+          </p>
+          <p>
+            <strong>The <code>Sec-WebSocket-Protocol</code> trick:</strong> smuggles a
+            token through the one header you <em>can</em> set. It works, and it abuses
+            a header that means something else.
+          </p>
+          <p>
+            <strong>The real cost of tickets:</strong> they live in process memory, so
+            a second instance cannot redeem a ticket the first one issued. That lands
+            on the same Redis migration as everything else here.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="express"><span class="h2-num">10</span>Why plain Express and not Next.js</h2>
+
+    <div class="decision">
+      <div class="decision-head">
+        <div class="decision-q">The decision</div>
+        <h3>Express API + a React SPA, served together</h3>
+      </div>
+      <div class="decision-body">
+        <div>
+          <div class="field-label chose">What we used</div>
+          <p class="verdict">Express 5 · Vite-built React · one process, one container</p>
+        </div>
+        <div>
+          <div class="field-label why">Why</div>
+          <p>
+            Two reasons, and the first is the honest one: <strong>MERN means
+            Express</strong>. This project exists partly to be a real MERN
+            application, and Next.js would make it a Next application that happens to
+            use MongoDB.
+          </p>
+          <p>
+            The second reason is technical and holds up. This app needs a long-lived
+            WebSocket server attached to the same HTTP server, plus a background timer
+            sweeping for offline machines. Both want a persistent process that owns its
+            own server instance. That is exactly what serverless-first frameworks are
+            built to avoid.
+          </p>
+          <p>
+            The dashboard is also behind a login and updates continuously — there is no
+            SEO to win and no meaningful first-paint content to server-render.
+          </p>
+        </div>
+        <div>
+          <div class="field-label swap">What if you changed it</div>
+          <p>
+            <strong>Next.js:</strong> you would get routing, code splitting, and image
+            handling for free, and immediately need somewhere else to put the
+            WebSocket hub and the sweep timer — either a custom server (which gives up
+            most of the deployment benefit) or a separate always-on service.
+          </p>
+          <p>
+            <strong>NestJS:</strong> the right answer as the team grows. Dependency
+            injection, module boundaries, and a WebSocket gateway built in. At this
+            size it is structure you are not yet being paid back for.
+          </p>
+          <p>
+            <strong>Fastify:</strong> meaningfully faster and a better validation
+            story. The one thing it costs is that “MERN” stops being literally true.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="toolloop"><span class="h2-num">11</span>Why the AI loop is hand-written</h2>
+
+    <div class="decision">
+      <div class="decision-head">
+        <div class="decision-q">The decision</div>
+        <h3>A manual tool-use loop over the SDK's tool runner</h3>
+      </div>
+      <div class="decision-body">
+        <div>
+          <div class="field-label chose">What we used</div>
+          <p class="verdict">Claude Opus 5 · six read-only tools · six-turn cap · trace returned to the UI</p>
+        </div>
+        <div>
+          <div class="field-label why">Why</div>
+          <p>
+            The Anthropic SDK ships a tool runner that drives this loop for you, and it
+            is the right default. Two things argued against it here: it is a beta
+            surface, and the offline fallback needs the same shape. Owning ~40 lines
+            keeps both paths symmetrical and makes the full trace available to return
+            to the operator.
+          </p>
+          <p>
+            That trace matters more than it sounds. The assistant's answer is shown
+            beside the exact queries that produced it, so an operator can check the
+            numbers instead of trusting them.
+          </p>
+        </div>
+        <div>
+          <div class="field-label swap">What if you changed it</div>
+          <p>
+            <strong>The SDK tool runner:</strong> less code, and per-turn hooks that
+            cover approval gates and retries. Worth switching to once it is stable.
+          </p>
+          <p>
+            <strong>Giving the tools write access:</strong> the single change that would
+            most damage this design. Every tool is read-only, so a prompt-injected
+            answer can mislead a reader but cannot acknowledge an alert, edit a
+            planogram, or dispatch a technician. Adding one write tool means the
+            model's output becomes an action, and the whole thing needs a confirmation
+            step and an audit trail.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      <span class="note-label">Why thinking stays on</span>
+      <p>
+        Both AI features run with thinking enabled at low or medium effort rather
+        than disabled. Disabling it looks cheaper, but on Opus 5 it has a specific
+        failure mode with tool use: the model can write a tool call into its visible
+        text instead of emitting a proper tool-use block. The turn succeeds, the tool
+        never runs, and nothing errors. Low effort with thinking on is both cheaper
+        than it looks and considerably safer.
+      </p>
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="forecast"><span class="h2-num">12</span>The forecast, in one query</h2>
+
+    <p>
+      “Which slots will run out this week?” is the question the whole restock feature
+      rests on. The naive version is a loop: fetch machines, then for each of twenty
+      slots count its sales. Sixteen machines is 320 round trips.
+    </p>
+
+    <p>It runs as one aggregation instead:</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Stage</th><th>What it does</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>$unwind: "$slots"</code></td><td>Turns one machine with 20 slots into 20 rows, so each slot is addressable</td></tr>
+          <tr><td><code>$lookup</code> with a pipeline</td><td>For each row, counts only that slot's sales inside the window — correlated with <code>let</code>, not a blanket join</td></tr>
+          <tr><td><code>$addFields</code></td><td><code>ratePerDay = unitsSold / windowDays</code></td></tr>
+          <tr><td><code>$addFields</code></td><td><code>daysToEmpty = qty / ratePerDay</code>, or <code>null</code> when the rate is zero</td></tr>
+          <tr><td><code>$match</code></td><td>Keeps rows emptying inside the horizon, plus anything already at zero</td></tr>
+          <tr><td><code>$sort</code></td><td>Most urgent first — this is the restock priority order</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      The <code>null</code> is a deliberate choice. A slot with no sales in the window
+      has an <em>unknown</em> rate, not a rate of zero, and reporting “empties in
+      infinity days” would quietly hide a slot nobody has checked. Unknown is
+      represented as unknown.
+    </p>
+
+    <h4>What if you changed it</h4>
+    <p>
+      <strong>Computing in application code:</strong> means pulling every sale over
+      the wire to count them. The aggregation counts them where they live.
+      <strong>Caching the result:</strong> tempting, and it buys you a staleness
+      problem — every vend invalidates one row. It is fast enough to compute on
+      demand, so there is nothing to invalidate.
+      <strong>A better model:</strong> the real weakness. A trailing average cannot
+      see a holiday, a heatwave, or a site closure. Exponential smoothing or a
+      day-of-week seasonal factor would be the honest next step.
+    </p>
+
+    <!-- ============================================================ -->
+    <h2 id="routing"><span class="h2-num">13</span>The routing algorithm</h2>
+
+    <p>
+      Once you know which machines need stock, you need an order to visit them in.
+      That is the travelling salesman problem, which is NP-hard — so this does what
+      production systems do and takes a good answer fast instead of the best answer
+      eventually.
+    </p>
+
+    <p>
+      <strong>Step one, nearest neighbour:</strong> start at the depot, repeatedly go
+      to the closest unvisited stop. Fast, and reliably mediocre — it commits to
+      cheap early hops and pays for them at the end, leaving a path that visibly
+      crosses itself.
+    </p>
+
+    <p>
+      <strong>Step two, 2-opt:</strong> take any two points in the route, reverse the
+      segment between them, and keep the reversal if the total got shorter. Repeat
+      until nothing improves. Every crossing is one such reversal away from being
+      removed.
+    </p>
+
+    <figure>
+      <svg viewBox="0 0 880 260" role="img"
+           aria-label="Two routes over the same five stops. On the left, the nearest-neighbour path crosses itself between the second and fourth stops. On the right, reversing the segment between them removes the crossing and shortens the route.">
+        <defs>
+          <marker id="r1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="currentColor"/>
+          </marker>
+          <marker id="r2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="var(--signal-mark)"/>
+          </marker>
+        </defs>
+
+        <!-- LEFT: with crossing -->
+        <text x="20" y="26" font-family="var(--display)" font-size="15" fill="currentColor" font-weight="600">NEAREST NEIGHBOUR</text>
+        <text x="20" y="44" font-family="var(--mono)" font-size="11" fill="var(--crit)">crosses itself · 100%</text>
+
+        <polyline points="60,180 150,90 300,170 210,80 350,70"
+                  fill="none" stroke="currentColor" stroke-width="1.8" marker-end="url(#r1)"/>
+        <g fill="var(--paper)" stroke="currentColor" stroke-width="1.5">
+          <circle cx="60"  cy="180" r="9"/>
+          <circle cx="150" cy="90"  r="9"/>
+          <circle cx="300" cy="170" r="9"/>
+          <circle cx="210" cy="80"  r="9"/>
+          <circle cx="350" cy="70"  r="9"/>
+        </g>
+        <g font-family="var(--mono)" font-size="10.5" fill="currentColor" text-anchor="middle">
+          <text x="60"  y="184">D</text>
+          <text x="150" y="94">1</text>
+          <text x="300" y="174">2</text>
+          <text x="210" y="84">3</text>
+          <text x="350" y="74">4</text>
+        </g>
+        <circle cx="228" cy="128" r="26" fill="none" stroke="var(--crit)" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="228" y="228" font-family="var(--mono)" font-size="11" fill="var(--crit)" text-anchor="middle">the crossing</text>
+
+        <line x1="440" y1="20" x2="440" y2="240" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4" opacity="0.35"/>
+
+        <!-- RIGHT: after 2-opt -->
+        <text x="472" y="26" font-family="var(--display)" font-size="15" fill="var(--signal)" font-weight="600">AFTER 2-OPT</text>
+        <text x="472" y="44" font-family="var(--mono)" font-size="11" fill="var(--good)">segment 2–3 reversed · shorter</text>
+
+        <polyline points="512,180 602,90 662,80 752,170 802,70"
+                  fill="none" stroke="var(--signal-mark)" stroke-width="2" marker-end="url(#r2)"/>
+        <g fill="var(--paper)" stroke="currentColor" stroke-width="1.5">
+          <circle cx="512" cy="180" r="9"/>
+          <circle cx="602" cy="90"  r="9"/>
+          <circle cx="662" cy="80"  r="9"/>
+          <circle cx="752" cy="170" r="9"/>
+          <circle cx="802" cy="70"  r="9"/>
+        </g>
+        <g font-family="var(--mono)" font-size="10.5" fill="currentColor" text-anchor="middle">
+          <text x="512" y="184">D</text>
+          <text x="602" y="94">1</text>
+          <text x="662" y="84">3</text>
+          <text x="752" y="174">2</text>
+          <text x="802" y="74">4</text>
+        </g>
+        <text x="682" y="228" font-family="var(--mono)" font-size="11" fill="var(--good)" text-anchor="middle">no crossing</text>
+      </svg>
+      <figcaption>
+        <b>Same five stops, same start, shorter path.</b> Visiting 3 before 2 —
+        reversing that segment — removes the crossing. On the 10–40 stops of a real
+        service round this runs in microseconds and typically takes 10–25% off the
+        nearest-neighbour distance.
+      </figcaption>
+    </figure>
+
+    <h4>What if you changed it</h4>
+    <p>
+      <strong>Nearest neighbour alone:</strong> a visibly worse route for no saving
+      worth having. <strong>An exact solver:</strong> optimal, and the runtime
+      explodes past about twenty stops. <strong>A real routing API</strong> (Google,
+      OSRM, Valhalla): the actual upgrade, because the honest limitation here is not
+      the ordering — it is that these are <em>straight-line</em> distances. There is
+      no road network, no one-way streets, no traffic. It is a planning aid, and the
+      README says so rather than implying otherwise.
+    </p>
+
+    <!-- ============================================================ -->
+    <h2 id="failure"><span class="h2-num">14</span>What breaks, and how it behaves</h2>
+
+    <p>
+      A useful way to judge a system is what it does when things go wrong. Every row
+      here is deliberate.
+    </p>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Failure</th><th>What happens</th><th>Why that choice</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>MongoDB is standalone</td>
+            <td><span class="pill crit">refuses to boot</span></td>
+            <td>Booting would serve a dashboard that silently never updates</td>
+          </tr>
+          <tr>
+            <td>Default JWT secret in production</td>
+            <td><span class="pill crit">refuses to boot</span></td>
+            <td>That secret is public in the repo — anyone could forge an admin token</td>
+          </tr>
+          <tr>
+            <td>Change stream drops</td>
+            <td><span class="pill warn">reconnects, UI shows stale</span></td>
+            <td>Silent staleness is worse than visible degradation</td>
+          </tr>
+          <tr>
+            <td>Machine stops heartbeating</td>
+            <td><span class="pill warn">offline alert after 3 min</span></td>
+            <td>The signal is absence of data, so a timer detects it, not a request</td>
+          </tr>
+          <tr>
+            <td>Vend fails mid-write</td>
+            <td><span class="pill good">transaction rolls back</span></td>
+            <td>A decrement without a sale loses revenue; a sale without one corrupts the forecast</td>
+          </tr>
+          <tr>
+            <td>Alert rule throws after a vend</td>
+            <td><span class="pill good">sale is kept</span></td>
+            <td>Rules run outside the transaction — a failed alert must not undo a sale that physically happened</td>
+          </tr>
+          <tr>
+            <td>Same fault repeats every 30s</td>
+            <td><span class="pill good">one alert</span></td>
+            <td>A dedupe key plus a partial unique index, so concurrent writers cannot both win</td>
+          </tr>
+          <tr>
+            <td>No Anthropic API key</td>
+            <td><span class="pill good">offline analyzer, labelled</span></td>
+            <td>The product still works; the UI never passes rules off as a model</td>
+          </tr>
+          <tr>
+            <td>Claude declines a request</td>
+            <td><span class="pill good">falls back, labelled</span></td>
+            <td>A refusal returns HTTP 200 with no usable content — reading it blindly would crash</td>
+          </tr>
+          <tr>
+            <td>Controller stuck in a reboot loop</td>
+            <td><span class="pill warn">that machine is rate-limited</span></td>
+            <td>Per-machine budget, so one bad controller cannot starve ingest for the fleet</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 id="interview"><span class="h2-num">15</span>Questions to be ready for</h2>
+
+    <p>
+      If you built this, these are the questions worth having an answer to. The
+      answers below are prompts, not scripts.
+    </p>
+
+    <details class="q">
+      <summary>Why MongoDB? Wouldn't Postgres be better for this?</summary>
+      <div class="answer">
+        <p>
+          Concede the point first — it is a strong one. Slots and sales are relational
+          in shape, and Postgres would give real foreign keys, which this schema
+          currently lacks. Then give the actual reason: four capabilities that would
+          otherwise be four pieces of infrastructure come from one system here —
+          time-series, geospatial, a change feed, and transactions. Naming what you gave
+          up is more convincing than claiming the choice was free.
+        </p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary>Walk me through what happens when a machine sends a heartbeat.</summary>
+      <div class="answer">
+        <p>
+          Five steps, in order: authenticate the machine by hashed API key with a
+          timing-safe compare; validate with Zod and append to the time-series
+          collection; denormalise the latest values onto the machine document; run the
+          alert rules; and let the change stream on that write push to every connected
+          dashboard. The point to land is step three — the denormalised copy is what
+          makes the fleet list one query instead of one aggregation per machine.
+        </p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary>How does the dashboard stay up to date?</summary>
+      <div class="answer">
+        <p>
+          It never polls. MongoDB change streams tail the oplog and the server forwards
+          those to browsers over an authenticated WebSocket. The follow-up worth
+          pre-empting: what happens when the stream dies. Answer that you track a
+          resume token, reconnect with backoff, and push a health frame so the UI shows
+          <em>stale</em> — because a green light over frozen data is worse than an
+          outage.
+        </p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary>Why do you need a replica set for a single-node database?</summary>
+      <div class="answer">
+        <p>
+          Because change streams and transactions are implemented on the oplog, and a
+          standalone <code>mongod</code> does not keep one. It has nothing to do with
+          redundancy here. Add that the app checks at boot and refuses to start
+          otherwise, which turns a confusing silent failure into a one-line error.
+        </p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary>How do you stop the same alert firing every 30 seconds?</summary>
+      <div class="answer">
+        <p>
+          A dedupe key of machine + type + subject, and a <em>partial</em> unique index
+          scoped to alerts that are still open. Partial matters: the same fault can
+          legitimately recur next month, so the constraint must not apply to resolved
+          ones. It is enforced in the database rather than in application code, so two
+          concurrent ingest requests cannot both create it.
+        </p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary>What happens if the vend transaction fails halfway?</summary>
+      <div class="answer">
+        <p>
+          Both writes roll back. Explain why both matter in that direction: a decrement
+          without a sale silently loses revenue, and a sale without a decrement makes
+          the forecast believe in stock that is not there. Then mention what is
+          deliberately <em>outside</em> the transaction — the alert rules — because a
+          failed alert write must not undo a sale that physically happened.
+        </p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary>How is the AI grounded? What stops it making things up?</summary>
+      <div class="answer">
+        <p>
+          It cannot answer from memory — it only has six tools, all of which query the
+          live database, and the UI shows the full tool trace beside the answer so an
+          operator can check it. Then the security point, which is the one that lands:
+          every tool is read-only by construction, so even a successful prompt injection
+          can mislead a reader but cannot change fleet state.
+        </p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary>This is a portfolio project. Is it production-ready?</summary>
+      <div class="answer">
+        <p>
+          Answer this one straight, because hedging is what looks bad. Say what is done:
+          authenticated everywhere, validated config that refuses unsafe production
+          settings, resumable streams, security headers, a non-root container. Then say
+          what is not, without being asked: it runs on one instance, because WebSocket
+          fan-out and rate limiting are both in-process and Redis is the next real piece
+          of work. Also no metrics, no backup procedure, and no unit tests beyond the
+          32 end-to-end ones. Knowing exactly where the line is <em>is</em> the answer.
+        </p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary>What would you do differently if you started again?</summary>
+      <div class="answer">
+        <p>
+          Have two or three real ones ready. Candidates: put the fan-out behind Redis
+          from the start rather than retrofitting it; use a targeted <code>$inc</code>
+          on the slot rather than saving the whole machine document, which would remove
+          a real concurrent-write risk; and build the forecast with day-of-week
+          seasonality instead of a flat trailing average, because a flat average cannot
+          see a holiday.
+        </p>
+      </div>
+    </details>
+
+    <footer class="end">
+      Coilworks · github.com/Itsssaksham/coilworks<br>
+      Every mechanism described here is in the repository; nothing in this document is aspirational.
+    </footer>
+
+  </main>
+</div>
