@@ -327,7 +327,15 @@ tr.flash { animation: flash 1.1s ease-out; }
 @media (pointer: coarse) {
   /* iOS zooms the page when a focused field is under 16px, and body sets 14px. */
   input, select, textarea { font-size: 16px; }
-  button, .nav-item { min-height: 44px; }
+  /* Map pins are round markers positioned on the map — a min-height here would
+     stretch them into capsules, so they get their touch area from ::after. */
+  button:not(.pin), .nav-item { min-height: 44px; }
   .alert-actions button, .chips button { min-height: 40px; }
-  .pin { width: 16px; height: 16px; }
+  .pin { width: 14px; height: 14px; }
+  .pin::after {
+    content: "";
+    position: absolute;
+    inset: -15px;
+    border-radius: 50%;
+  }
 }
