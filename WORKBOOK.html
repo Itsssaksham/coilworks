@@ -1,3 +1,6 @@
+<!DOCTYPE html>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Coilworks — How It Works and Why</title>
 
 <style>
@@ -375,6 +378,11 @@
     .rail-title { width: 100%; padding-left: 0; }
     body { font-size: 16.5px; }
     main { padding-top: 26px; }
+  }
+
+  /* Contents links collapse to a 31px-tall wrapped row on narrow screens. */
+  @media (pointer: coarse) {
+    .rail a { min-height: 44px; display: inline-flex; align-items: center; }
   }
 
   html { scroll-behavior: smooth; }

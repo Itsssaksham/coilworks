@@ -281,3 +281,53 @@ tr.flash { animation: flash 1.1s ease-out; }
   border-left: 2px solid var(--info);
   border-radius: 0 3px 3px 0;
 }
+
+/* ============ Small screens ============
+   The shell is a fixed 216px sidebar beside the content, which leaves ~159px
+   of usable width on a phone. Below 860px the sidebar unstacks into a
+   horizontally scrolling tab strip above the content instead. */
+@media (max-width: 860px) {
+  .shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .sidebar {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sidebar .brand { padding: 0 10px 0 0; flex: none; }
+  .nav-item { width: auto; flex: none; white-space: nowrap; justify-content: center; gap: 6px; }
+  /* Pushes itself to the far end of a scrolling row, where it can't be reached. */
+  .sidebar-foot { display: none; }
+
+  .main { padding: 16px 14px 48px; }
+  .login-wrap { height: 100vh; height: 100dvh; }
+
+  .page-head h1 { font-size: 19px; }
+  .kpi-row { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  .bubble.q { max-width: 100%; }
+  .ask-row { flex-wrap: wrap; }
+  .ask-row input { flex: 1 1 100%; }
+}
+
+/* Tables are wider than a phone; they scroll inside their own box rather than
+   dragging the whole page sideways. */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+@media (pointer: coarse) {
+  /* iOS zooms the page when a focused field is under 16px, and body sets 14px. */
+  input, select, textarea { font-size: 16px; }
+  button, .nav-item { min-height: 44px; }
+  .alert-actions button, .chips button { min-height: 40px; }
+  .pin { width: 16px; height: 16px; }
+}
